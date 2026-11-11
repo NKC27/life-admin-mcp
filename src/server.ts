@@ -3,35 +3,65 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { Store } from "./store.js";
 import { describeSource, type FolderLocation } from "./config.js";
-import { ITEM_TYPES, type Item } from "./types.js";
+import { describeDays, dueStatus, rollForward, today } from "./dates.js";
+import { ITEM_TYPES, PERIODS, type Item, type ItemInput } from "./types.js";
+import { appendHistory, formatMoney, percentChange } from "./util.js";
 import { VERSION } from "./version.js";
 
 const INSTRUCTIONS =
   "Local-first life admin: renewals, bills, subscriptions, warranties, policies, vehicles and documents, each " +
-  "stored as a markdown file on the user's own machine. Store only the last four digits of any account or card " +
-  "number. Never invent dates or prices; ask the user. get_stats shows where the folder is and what it holds.";
+  "stored as a markdown file on the user's own machine. Use due_soon to see what needs attention, add_item to " +
+  "track something new (search_items first to avoid duplicates), and mark_handled once the user has dealt with " +
+  "a renewal or payment. Store only the last four digits of any account or card number. Never invent dates or " +
+  "prices; ask the user. Nothing here sends reminders by itself.";
 
 // Tool annotations let clients tell safe reads from writes and decide when to ask for approval.
 const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
+const DESTRUCTIVE = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
+
+const CLEARABLE = ["provider", "cost", "due", "ref"] as const;
 
 function textResult(text: string, isError = false) {
   return { isError, content: [{ type: "text" as const, text }] };
 }
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 function formatCost(item: Item): string {
   if (item.cost === undefined) return "";
-  const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: item.currency }).format(item.cost);
+  const money = formatMoney(item.cost, item.currency);
   return item.period === "one-off" ? money : `${money}/${item.period.replace(/ly$/, "")}`;
 }
 
-export function itemLine(item: Item): string {
+/** One-line summary used by every listing. */
+export function itemLine(item: Item, extra = ""): string {
   const parts = [`**${item.title}** (${item.type})`];
   if (item.provider) parts.push(item.provider);
   const cost = formatCost(item);
   if (cost) parts.push(cost);
-  if (item.due) parts.push(`due ${item.due}`);
+  if (item.due) parts.push(`due ${item.due}${extra ? `, ${extra}` : ""}`);
+  if (item.auto_renews) parts.push("renews automatically");
   return `- ${parts.join(" · ")}`;
 }
+
+/** Item fields shared by add_item and update_item. */
+const FIELD_SCHEMA = {
+  provider: z.string().max(200).optional().describe("Who it is with, e.g. 'Octopus Energy'"),
+  cost: z.number().min(0).optional().describe("Cost per period, as stated by the user. Never estimate."),
+  currency: z.string().length(3).optional().describe("Three-letter code, default GBP"),
+  period: z.enum(PERIODS).optional().describe("How often it repeats (default one-off)"),
+  due: z
+    .string()
+    .optional()
+    .describe("Next renewal, payment or expiry date as YYYY-MM-DD. Only a date the user gave you."),
+  remind_days: z.number().int().min(0).max(365).optional().describe("Days before due to start reminding (default 14)"),
+  auto_renews: z.boolean().optional().describe("True if it renews or charges automatically unless stopped"),
+  ref: z.string().max(60).optional().describe("Policy, account or order reference; only the last four are kept"),
+  tags: z.array(z.string().max(40)).max(10).optional().describe("A few lowercase tags, e.g. ['car']"),
+};
 
 export function createServer(store: Store, location: FolderLocation): McpServer {
   const server = new McpServer(
@@ -39,24 +69,69 @@ export function createServer(store: Store, location: FolderLocation): McpServer 
     { instructions: INSTRUCTIONS }
   );
 
+  async function resolve(query: string): Promise<{ item: Item | null; message: string }> {
+    const item = await store.findBySlugOrTitle(query);
+    if (item) return { item, message: "" };
+    const suggestion = await store.suggestClosest(query);
+    const base = `No item found matching "${query}".`;
+    return {
+      item: null,
+      message: suggestion ? `${base} Did you mean "${suggestion.title}"?` : `${base} Try list_items or search_items.`,
+    };
+  }
+
+  function toInput(item: Item): ItemInput {
+    const { slug: _s, created: _c, updated: _u, path: _p, ...input } = item;
+    return input;
+  }
+
+  function describeItem(item: Item, todayDate: string): string {
+    const lines = [`**${item.title}** (${item.type})`];
+    if (item.provider) lines.push(`Provider: ${item.provider}`);
+    if (item.cost !== undefined)
+      lines.push(
+        `Cost: ${formatMoney(item.cost, item.currency)}${item.period === "one-off" ? "" : ` per ${item.period.replace(/ly$/, "")}`}`
+      );
+    else if (item.period !== "one-off") lines.push(`Repeats: ${item.period}`);
+    if (item.due) {
+      const s = dueStatus(item.due, todayDate, item.remind_days);
+      lines.push(`Due: ${item.due} (${describeDays(s.daysLeft)}), reminders from ${s.remindFrom}`);
+    }
+    if (item.auto_renews) lines.push("Renews automatically unless stopped");
+    if (item.ref) lines.push(`Ref: ${item.ref}`);
+    if (item.tags.length) lines.push(`Tags: ${item.tags.join(", ")}`);
+    if (item.body) lines.push("", item.body);
+    return lines.join("\n");
+  }
+
+  // ---------------------------------------------------------------------------
+  // reading
+  // ---------------------------------------------------------------------------
+
   server.registerTool(
     "get_stats",
     {
       title: "Folder stats",
       description:
-        "Where the life-admin folder lives and what it holds: item counts by type and how many have a due date. " +
-        "Call once at the start of a conversation to orient.",
+        "Where the life-admin folder lives and what it holds: item counts by type, how many are overdue and how " +
+        "many are due in the next 30 days. Call once at the start of a conversation to orient.",
       inputSchema: {},
       annotations: READ_ONLY,
     },
     async () => {
       const items = await store.loadAll();
+      const todayDate = today();
       const lines = [`Folder: ${store.root} (${describeSource(location.source)})`, `Items: ${items.length}`];
       for (const type of ITEM_TYPES) {
         const count = items.filter((i) => i.type === type).length;
         if (count) lines.push(`  ${type}: ${count}`);
       }
-      lines.push(`With a due date: ${items.filter((i) => i.due).length}`);
+      const dated = items.filter((i): i is Item & { due: string } => i.due !== undefined);
+      const statuses = dated.map((i) => dueStatus(i.due, todayDate, i.remind_days));
+      lines.push(`With a due date: ${dated.length}`);
+      lines.push(`Overdue: ${statuses.filter((s) => s.overdue).length}`);
+      lines.push(`Due in the next 30 days: ${statuses.filter((s) => !s.overdue && s.daysLeft <= 30).length}`);
+      lines.push(`Today is ${todayDate}.`);
       if (location.source === "demo")
         lines.push("This is the demo folder with fictional items. Run `life-admin-mcp init` to create your own.");
       return textResult(lines.join("\n"));
@@ -80,7 +155,295 @@ export function createServer(store: Store, location: FolderLocation): McpServer 
         .sort((a, b) => (a.due ?? "9999").localeCompare(b.due ?? "9999") || a.title.localeCompare(b.title))
         .slice(0, limit ?? 100);
       if (!items.length) return textResult(type ? `No ${type} items yet.` : "No items yet.");
-      return textResult(items.map(itemLine).join("\n"));
+      return textResult(items.map((i) => itemLine(i)).join("\n"));
+    }
+  );
+
+  server.registerTool(
+    "get_item",
+    {
+      title: "Get item",
+      description:
+        "Full details of one item by title: provider, cost, due date with days left and when reminders start, " +
+        "reference, and its notes and history.",
+      inputSchema: { item: z.string().min(1).describe("The item's title") },
+      annotations: READ_ONLY,
+    },
+    async ({ item: query }) => {
+      const { item, message } = await resolve(query);
+      if (!item) return textResult(message, true);
+      return textResult(describeItem(item, today()));
+    }
+  );
+
+  server.registerTool(
+    "search_items",
+    {
+      title: "Search items",
+      description:
+        "Find items whose title, provider, tags or notes contain any of the words in the query, best matches " +
+        "first. Use before add_item to avoid duplicates, and for questions like 'where's the boiler warranty?'.",
+      inputSchema: {
+        query: z.string().min(1).describe("A few keywords, e.g. 'boiler warranty'"),
+        type: z.enum(ITEM_TYPES).optional().describe("Only items of this type"),
+        limit: z.number().int().min(1).max(50).optional().describe("Maximum results (default 10)"),
+      },
+      annotations: READ_ONLY,
+    },
+    async ({ query, type, limit }) => {
+      const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+      const scored = (await store.loadAll())
+        .filter((i) => !type || i.type === type)
+        .map((item) => {
+          const title = item.title.toLowerCase();
+          const provider = (item.provider ?? "").toLowerCase();
+          const tags = item.tags.map((t) => t.toLowerCase());
+          const body = item.body.toLowerCase();
+          let score = 0;
+          for (const t of terms) {
+            if (title.includes(t)) score += 3;
+            if (provider.includes(t)) score += 2;
+            if (tags.some((tag) => tag.includes(t))) score += 2;
+            if (body.includes(t)) score += 1;
+          }
+          return { item, score };
+        })
+        .filter((r) => r.score > 0)
+        .sort((a, b) => b.score - a.score || a.item.title.localeCompare(b.item.title))
+        .slice(0, limit ?? 10);
+      if (!scored.length) return textResult(`Nothing matches "${query}".`);
+      return textResult(scored.map((r) => itemLine(r.item)).join("\n"));
+    }
+  );
+
+  server.registerTool(
+    "due_soon",
+    {
+      title: "Due soon",
+      description:
+        "What needs attention: overdue items, items due within the next `days` days, and items further out whose " +
+        "reminder window has already opened (e.g. a passport with a 180-day reminder). Sorted by due date, with " +
+        "today's date stated. This is the main 'what's coming up?' tool.",
+      inputSchema: {
+        days: z.number().int().min(1).max(366).optional().describe("How far ahead to look (default 30)"),
+        type: z.enum(ITEM_TYPES).optional().describe("Only items of this type"),
+      },
+      annotations: READ_ONLY,
+    },
+    async ({ days, type }) => {
+      const window = days ?? 30;
+      const todayDate = today();
+      const overdue: string[] = [];
+      const upcoming: string[] = [];
+      const early: string[] = [];
+      const dated = (await store.loadAll())
+        .filter((i): i is Item & { due: string } => i.due !== undefined && (!type || i.type === type))
+        .sort((a, b) => a.due.localeCompare(b.due) || a.title.localeCompare(b.title));
+      for (const item of dated) {
+        const s = dueStatus(item.due, todayDate, item.remind_days);
+        if (s.overdue) overdue.push(itemLine(item, describeDays(s.daysLeft)));
+        else if (s.daysLeft <= window) upcoming.push(itemLine(item, describeDays(s.daysLeft)));
+        else if (s.remindersOn)
+          early.push(itemLine(item, `${describeDays(s.daysLeft)}, reminders started ${s.remindFrom}`));
+      }
+
+      const sections = [`Today is ${todayDate}.`];
+      if (overdue.length) sections.push(`Overdue:\n${overdue.join("\n")}`);
+      if (upcoming.length) sections.push(`Due in the next ${window} days:\n${upcoming.join("\n")}`);
+      if (early.length) sections.push(`Further out, but the reminder window is open:\n${early.join("\n")}`);
+      if (!overdue.length && !upcoming.length && !early.length)
+        sections.push(`Nothing overdue or due in the next ${window} days.`);
+      return textResult(sections.join("\n\n"));
+    }
+  );
+
+  // ---------------------------------------------------------------------------
+  // writing
+  // ---------------------------------------------------------------------------
+
+  server.registerTool(
+    "add_item",
+    {
+      title: "Add item",
+      description:
+        "Start tracking something: a bill, renewal, subscription, warranty, policy, vehicle or document. Use only " +
+        "facts the user gave you; leave out a due date or cost rather than guessing. Refuses an exact duplicate " +
+        "title (use update_item instead) and anything that looks like a full card number.",
+      inputSchema: {
+        title: z.string().min(1).max(120).describe("Short, specific name, e.g. 'Car insurance' or 'Boiler warranty'"),
+        type: z.enum(ITEM_TYPES).describe("What kind of thing it is"),
+        ...FIELD_SCHEMA,
+        notes: z.string().max(5000).optional().describe("Anything else worth keeping, in the user's words"),
+      },
+      annotations: WRITE,
+    },
+    async ({ title, type, notes, ...fields }) => {
+      const existing = await store.findBySlugOrTitle(title);
+      if (existing && existing.title.toLowerCase() === title.trim().toLowerCase())
+        return textResult(`An item called "${existing.title}" already exists. Use update_item to change it.`, true);
+      try {
+        const saved = await store.save({ title, type, ...fields, body: notes });
+        return textResult(`Added.\n\n${describeItem(saved, today())}`);
+      } catch (err) {
+        return textResult(errorMessage(err), true);
+      }
+    }
+  );
+
+  server.registerTool(
+    "update_item",
+    {
+      title: "Update item",
+      description:
+        "Change fields on an existing item; anything you leave out stays as it is. `clear` removes a field. " +
+        "`add_note` appends a dated line to the item's history. For a renewal or payment that has been dealt " +
+        "with, use mark_handled instead so the due date moves on.",
+      inputSchema: {
+        item: z.string().min(1).describe("The item's current title"),
+        title: z.string().min(1).max(120).optional().describe("New title"),
+        type: z.enum(ITEM_TYPES).optional(),
+        ...FIELD_SCHEMA,
+        clear: z.array(z.enum(CLEARABLE)).optional().describe("Fields to remove"),
+        add_note: z.string().max(2000).optional().describe("Append a dated line to the history"),
+      },
+      annotations: WRITE,
+    },
+    async ({ item: query, clear, add_note, ...changes }) => {
+      const { item, message } = await resolve(query);
+      if (!item) return textResult(message, true);
+
+      if (changes.title && changes.title.trim().toLowerCase() !== item.title.toLowerCase()) {
+        const clash = await store.findBySlugOrTitle(changes.title);
+        if (clash && clash.slug !== item.slug)
+          return textResult(`Another item is already called "${clash.title}".`, true);
+      }
+
+      const next: ItemInput = { ...toInput(item) };
+      for (const [key, value] of Object.entries(changes)) {
+        if (value !== undefined) (next as unknown as Record<string, unknown>)[key] = value;
+      }
+      // A new due date starts a new schedule, so forget any remembered month-end day.
+      if (changes.due !== undefined && changes.due !== item.due) next.anchor_day = undefined;
+      for (const field of clear ?? []) {
+        next[field] = undefined;
+        if (field === "due") next.anchor_day = undefined;
+      }
+      if (add_note) next.body = appendHistory(next.body ?? "", `${today()} ${add_note.trim()}`);
+
+      try {
+        const saved = await store.save(next, { slug: item.slug, created: item.created });
+        return textResult(`Updated.\n\n${describeItem(saved, today())}`);
+      } catch (err) {
+        return textResult(errorMessage(err), true);
+      }
+    }
+  );
+
+  server.registerTool(
+    "mark_handled",
+    {
+      title: "Mark handled",
+      description:
+        "Record that the user has dealt with an item (renewed, paid, switched, replaced). Logs it in the item's " +
+        "history and moves the due date on: repeating items roll forward by their period (keeping month-end dates " +
+        "right), `next_due` sets a date explicitly, and a one-off item's due date is cleared. Pass `new_cost` when " +
+        "the price changed; the old and new prices are logged.",
+      inputSchema: {
+        item: z.string().min(1).describe("The item's title"),
+        note: z.string().max(500).optional().describe("What was done, e.g. 'Renewed with Admiral after haggling'"),
+        new_cost: z.number().min(0).optional().describe("The new cost per period, if it changed"),
+        next_due: z.string().optional().describe("Set the next due date explicitly (YYYY-MM-DD)"),
+      },
+      annotations: WRITE,
+    },
+    async ({ item: query, note, new_cost, next_due }) => {
+      const { item, message } = await resolve(query);
+      if (!item) return textResult(message, true);
+      const todayDate = today();
+
+      const next: ItemInput = { ...toInput(item) };
+      let dueText: string;
+      if (next_due !== undefined) {
+        next.due = next_due;
+        next.anchor_day = undefined;
+        dueText = `Next due ${next_due}.`;
+      } else if (item.due && item.period !== "one-off") {
+        const rolled = rollForward(item.due, item.period, todayDate, item.anchor_day);
+        next.due = rolled.due;
+        next.anchor_day = rolled.anchorDay;
+        dueText = `Next due ${rolled.due}${rolled.periods > 1 ? ` (moved on ${rolled.periods} periods to get past today)` : ""}.`;
+      } else if (item.due) {
+        next.due = undefined;
+        next.anchor_day = undefined;
+        dueText = "It was a one-off, so it no longer has a due date. Give next_due if there is a new one.";
+      } else {
+        dueText = "It has no due date.";
+      }
+
+      let history = `${todayDate} Handled${item.due ? ` (was due ${item.due})` : ""}`;
+      if (note) history += `: ${note.trim()}`;
+      let costText = "";
+      if (new_cost !== undefined) {
+        const now = formatMoney(new_cost, item.currency);
+        if (item.cost !== undefined && item.cost !== new_cost) {
+          const change = percentChange(item.cost, new_cost);
+          costText = `${now}, was ${formatMoney(item.cost, item.currency)}${change ? `, ${change}` : ""}`;
+        } else {
+          costText = now;
+        }
+        history += `. Cost ${costText}`;
+        next.cost = new_cost;
+      }
+      next.body = appendHistory(next.body ?? "", history);
+
+      try {
+        const saved = await store.save(next, { slug: item.slug, created: item.created });
+        const reminder = saved.due
+          ? ` Reminders from ${dueStatus(saved.due, todayDate, saved.remind_days).remindFrom}.`
+          : "";
+        return textResult(
+          `Marked **${saved.title}** as handled. ${dueText}${reminder}${costText ? ` Cost now ${costText}.` : ""}`
+        );
+      } catch (err) {
+        return textResult(errorMessage(err), true);
+      }
+    }
+  );
+
+  server.registerTool(
+    "delete_item",
+    {
+      title: "Delete item",
+      description:
+        "Stop tracking an item. It moves to the trash and can be brought back with restore_item. Confirm with " +
+        "the user first.",
+      inputSchema: { item: z.string().min(1).describe("The item's exact title") },
+      annotations: DESTRUCTIVE,
+    },
+    async ({ item: query }) => {
+      // Exact matches only: a fuzzy guess must never decide what gets deleted.
+      const item = await store.findBySlugOrTitle(query);
+      if (!item) return textResult((await resolve(query)).message, true);
+      const ok = await store.delete(item.slug);
+      return ok
+        ? textResult(`Moved "${item.title}" to the trash. restore_item brings it back.`)
+        : textResult(`Could not delete "${item.title}".`, true);
+    }
+  );
+
+  server.registerTool(
+    "restore_item",
+    {
+      title: "Restore item",
+      description: "Bring back the most recently deleted item with this title.",
+      inputSchema: { item: z.string().min(1).describe("The deleted item's title") },
+      annotations: WRITE,
+    },
+    async ({ item: query }) => {
+      const restored = await store.restore(query);
+      return restored
+        ? textResult(`Restored.\n\n${describeItem(restored, today())}`)
+        : textResult(`Nothing called "${query}" in the trash.`, true);
     }
   );
 

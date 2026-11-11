@@ -1,6 +1,6 @@
 # Life Admin MCP
 
-> **Work in progress (0.1.0, not yet published).** The storage, CLI and tests are in place; the tracking tools (`add_item`, `due_soon`, calendar export) come next.
+> **Work in progress (0.1.0, not yet published).** Tracking works; calendar export and the agent skill come next.
 
 Local-first life admin for AI agents. Your renewals, bills, subscriptions, warranties, policies and documents live as plain markdown files in a folder you own (`~/LifeAdmin`), and any [MCP](https://modelcontextprotocol.io) client (Claude Code, Claude Desktop, Cursor, VS Code) can track them for you.
 
@@ -11,6 +11,21 @@ npm install && npm run build
 node dist/index.js init      # creates ~/LifeAdmin and prints the setup for your AI client
 node dist/index.js doctor    # checks everything, including a live handshake
 ```
+
+## Tools
+
+| Tool | Does |
+| --- | --- |
+| `due_soon` | Overdue items, items due in the next N days (default 30), and items further out whose reminder window has opened |
+| `add_item` | Start tracking something; refuses duplicates, card numbers and impossible dates |
+| `get_item` | Full details, days left, when reminders start, notes and history |
+| `update_item` | Change, clear or add a dated note; untouched fields stay as they are |
+| `mark_handled` | Log that it was dealt with and move the due date on (month-end dates stay right); logs price changes |
+| `search_items`, `list_items` | Find things by words, type or due date |
+| `delete_item`, `restore_item` | Delete to a recoverable trash (exact title only), and bring it back |
+| `get_stats` | Folder location, counts, what's overdue and due soon |
+
+No tool sends reminders by itself: an agent only acts when you talk to it. Calendar export is next on the list for that.
 
 ## What an item looks like
 
@@ -37,6 +52,7 @@ ref: …7731              # last four only
 - **No full card numbers.** The server refuses anything that looks like a card number and keeps only the last four characters of a reference.
 - **Dates are never moved.** An impossible date such as `2027-02-30` is reported by `doctor`, not silently rolled over to another day.
 - **Recoverable deletes.** Deleted items go to `.trash/`.
+- **Month-end dates stay right.** A bill due on the 31st goes 31 Jan → 28 Feb → 31 Mar, and a 29 February renewal returns to the 29th in leap years.
 
 ## Development
 
@@ -45,7 +61,7 @@ npm test             # build, then unit, CLI and end-to-end MCP tests
 npm run format       # prettier
 ```
 
-Set `DEBUG_MCP=1` for debug logging on stderr (stdout is reserved for the protocol).
+Set `LIFE_ADMIN_TODAY=YYYY-MM-DD` to pretend it is another day (handy for testing), and `DEBUG_MCP=1` for debug logging on stderr (stdout is reserved for the protocol).
 
 ## Licence
 

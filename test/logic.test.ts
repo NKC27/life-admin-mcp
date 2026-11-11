@@ -4,7 +4,17 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { containsCardNumber, isIsoDate, levenshtein, maskRef, slugify } from "../src/util.js";
+import {
+  appendHistory,
+  containsCardNumber,
+  formatMoney,
+  isCurrencyCode,
+  isIsoDate,
+  levenshtein,
+  maskRef,
+  percentChange,
+  slugify,
+} from "../src/util.js";
 import { parseItem, Store } from "../src/store.js";
 import { resolveFolder } from "../src/config.js";
 
@@ -166,4 +176,41 @@ test("the bundled demo items are all well formed", async () => {
     const parsed = await store.parse(slug);
     assert.deepEqual(parsed?.problems, [], slug);
   }
+});
+
+test("appendHistory adds to an existing History section without touching other sections", () => {
+  const body = "Some notes.\n\n## History\n- 2026-03-03 Renewed\n\n## Contacts\nCall 0800 000 000";
+  const out = appendHistory(body, "2027-03-01 Handled");
+  assert.equal(
+    out,
+    "Some notes.\n\n## History\n- 2026-03-03 Renewed\n- 2027-03-01 Handled\n\n## Contacts\nCall 0800 000 000"
+  );
+});
+
+test("appendHistory creates the section when missing, including on an empty body", () => {
+  assert.equal(appendHistory("", "2027-03-01 Added"), "## History\n- 2027-03-01 Added");
+  assert.equal(appendHistory("Notes here.", "2027-03-01 Added"), "Notes here.\n\n## History\n- 2027-03-01 Added");
+});
+
+test("money, currency codes and percentage changes", () => {
+  assert.equal(formatMoney(412, "GBP"), "£412.00");
+  assert.equal(formatMoney(10.99, "EUR"), "€10.99");
+  assert.ok(isCurrencyCode("GBP"));
+  assert.ok(!isCurrencyCode("gbp"));
+  assert.ok(!isCurrencyCode("POUNDS"));
+  assert.equal(percentChange(412, 450), "+9%");
+  assert.equal(percentChange(450, 412), "-8%");
+  assert.equal(percentChange(412, 412), "no change");
+  assert.equal(percentChange(0, 10), "");
+});
+
+test("anchor_day and currency are validated and round-trip", async () => {
+  const { store, dir } = await tempStore();
+  const saved = await store.save({ title: "Rent", type: "bill", period: "monthly", due: "2027-02-28", anchor_day: 31 });
+  assert.equal(saved.anchor_day, 31);
+  await assert.rejects(store.save({ title: "X", type: "bill", anchor_day: 15 }), /anchor_day/);
+  await assert.rejects(store.save({ title: "X", type: "bill", currency: "pounds" }), /currency/);
+  const { problems } = parseItem("y", "---\ntitle: Y\ntype: bill\ncurrency: quid\nanchor_day: 3\n---\n", "/y.md");
+  assert.equal(problems.length, 2, problems.join("; "));
+  await fs.rm(dir, { recursive: true, force: true });
 });

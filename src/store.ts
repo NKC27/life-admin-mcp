@@ -3,7 +3,7 @@ import path from "node:path";
 import matter from "gray-matter";
 import yaml from "js-yaml";
 import { ITEM_TYPES, PERIODS, type Item, type ItemInput, type ItemType, type Period } from "./types.js";
-import { containsCardNumber, isIsoDate, levenshtein, maskRef, slugify } from "./util.js";
+import { containsCardNumber, isCurrencyCode, isIsoDate, levenshtein, maskRef, slugify } from "./util.js";
 
 export const DEFAULT_REMIND_DAYS = 14;
 export const DEFAULT_CURRENCY = "GBP";
@@ -64,6 +64,19 @@ export function parseItem(slug: string, raw: string, filePath: string): ParsedIt
     else problems.push(`cost "${String(data.cost)}" is not a number`);
   }
 
+  let anchor_day: number | undefined;
+  if (data.anchor_day !== undefined) {
+    const n = Number(data.anchor_day);
+    if (Number.isInteger(n) && n >= 29 && n <= 31) anchor_day = n;
+    else problems.push(`anchor_day "${String(data.anchor_day)}" should be 29, 30 or 31`);
+  }
+
+  let currency = DEFAULT_CURRENCY;
+  if (data.currency !== undefined) {
+    if (isCurrencyCode(data.currency)) currency = data.currency;
+    else problems.push(`currency "${String(data.currency)}" is not a three-letter code such as GBP`);
+  }
+
   let remind_days = DEFAULT_REMIND_DAYS;
   if (data.remind_days !== undefined) {
     const n = Number(data.remind_days);
@@ -78,9 +91,10 @@ export function parseItem(slug: string, raw: string, filePath: string): ParsedIt
       type,
       provider: typeof data.provider === "string" ? data.provider : undefined,
       cost,
-      currency: typeof data.currency === "string" ? data.currency : DEFAULT_CURRENCY,
+      currency,
       period,
       due,
+      anchor_day,
       remind_days,
       auto_renews: data.auto_renews === true,
       ref: typeof data.ref === "string" ? data.ref : undefined,
@@ -104,6 +118,13 @@ export function validateInput(input: ItemInput): void {
     throw new Error(`due must be a real date written as YYYY-MM-DD, got "${input.due}"`);
   if (input.cost !== undefined && !(Number.isFinite(input.cost) && input.cost >= 0))
     throw new Error("cost must be a number of zero or more");
+  if (input.currency !== undefined && !isCurrencyCode(input.currency))
+    throw new Error(`currency must be a three-letter code such as GBP, got "${input.currency}"`);
+  if (
+    input.anchor_day !== undefined &&
+    !(Number.isInteger(input.anchor_day) && input.anchor_day >= 29 && input.anchor_day <= 31)
+  )
+    throw new Error("anchor_day must be 29, 30 or 31");
   if (
     input.remind_days !== undefined &&
     !(Number.isInteger(input.remind_days) && input.remind_days >= 0 && input.remind_days <= 365)
@@ -230,6 +251,7 @@ export class Store {
       currency: input.currency ?? DEFAULT_CURRENCY,
       period: input.period ?? "one-off",
       due: input.due,
+      anchor_day: input.anchor_day,
       remind_days: input.remind_days ?? DEFAULT_REMIND_DAYS,
       auto_renews: input.auto_renews ?? false,
       ref: input.ref ? maskRef(input.ref) : undefined,

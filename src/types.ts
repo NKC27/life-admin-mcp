@@ -16,6 +16,11 @@ export interface Item {
   period: Period;
   /** Next renewal, payment or expiry date, YYYY-MM-DD. */
   due?: string;
+  /**
+   * Day of the month a monthly, quarterly or yearly schedule really falls on (29-31), kept when a short
+   * month clamps the date, so 31 Jan -> 28 Feb -> 31 Mar. Managed by the server.
+   */
+  anchor_day?: number;
   /** How many days before `due` to start reminding. */
   remind_days: number;
   auto_renews: boolean;

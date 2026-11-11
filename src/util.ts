@@ -68,3 +68,52 @@ export function maskRef(ref: string): string {
   const compact = trimmed.replace(/[\s-]/g, "");
   return compact.length <= 4 ? trimmed : `…${compact.slice(-4)}`;
 }
+
+/** A three-letter currency code that this Node.js can format, such as GBP or EUR. */
+export function isCurrencyCode(value: unknown): value is string {
+  if (typeof value !== "string" || !/^[A-Z]{3}$/.test(value)) return false;
+  try {
+    new Intl.NumberFormat("en-GB", { style: "currency", currency: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** £412.00, €9.99 ... in British formatting. */
+export function formatMoney(amount: number, currency: string): string {
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(amount);
+}
+
+/** Percentage change from `before` to `after`, as "+9%" / "-12%" / "no change", or "" when `before` is 0. */
+export function percentChange(before: number, after: number): string {
+  if (before === 0) return "";
+  const pct = Math.round(((after - before) / before) * 100);
+  if (pct === 0) return after === before ? "no change" : after > before ? "+<1%" : "-<1%";
+  return `${pct > 0 ? "+" : ""}${pct}%`;
+}
+
+/**
+ * Add a `- line` to the "## History" section of an item body, creating the section at the end if
+ * it does not exist. Other sections are left exactly as they were.
+ */
+export function appendHistory(body: string, line: string): string {
+  const entry = `- ${line}`;
+  const lines = body.split("\n");
+  const start = lines.findIndex((l) => /^##\s+History\s*$/i.test(l));
+  if (start < 0) {
+    const trimmed = body.trim();
+    return `${trimmed}${trimmed ? "\n\n" : ""}## History\n${entry}`;
+  }
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^#{1,2}\s/.test(lines[i]!)) {
+      end = i;
+      break;
+    }
+  }
+  let insertAt = end;
+  while (insertAt > start + 1 && lines[insertAt - 1]!.trim() === "") insertAt--;
+  lines.splice(insertAt, 0, entry);
+  return lines.join("\n");
+}
