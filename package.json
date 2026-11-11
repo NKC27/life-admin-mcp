@@ -1,0 +1,64 @@
+{
+  "name": "@nkc27/life-admin-mcp",
+  "version": "0.1.0",
+  "description": "Local-first life admin for AI agents, served over MCP: renewals, bills, subscriptions, warranties and policies as plain markdown files you own.",
+  "type": "module",
+  "bin": {
+    "life-admin-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "demo/items",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "inspect": "npm run build && npx @modelcontextprotocol/inspector node dist/index.js",
+    "test": "npm run build && node --import tsx --test test/*.test.ts",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prepublishOnly": "npm test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "claude-code",
+    "life-admin",
+    "renewals",
+    "bills",
+    "subscriptions",
+    "warranties",
+    "uk",
+    "markdown",
+    "local-first"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "gray-matter": "^4.0.3",
+    "js-yaml": "^4.3.2",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^26.4.1",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.13",
+    "typescript": "^5.7.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NKC27/life-admin-mcp.git"
+  },
+  "homepage": "https://github.com/NKC27/life-admin-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/NKC27/life-admin-mcp/issues"
+  },
+  "author": "NKC27"
+}

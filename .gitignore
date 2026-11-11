@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.log
+*.ics
+.DS_Store
+
+exports/
+*.zip
+demo/.trash/
