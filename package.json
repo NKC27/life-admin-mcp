@@ -48,6 +48,7 @@
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^26.4.1",
+    "ical.js": "^2.2.1",
     "prettier": "^3.9.10",
     "tsx": "^4.23.13",
     "typescript": "^5.7.3"

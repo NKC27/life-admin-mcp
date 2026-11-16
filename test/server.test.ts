@@ -50,6 +50,7 @@ test("advertises every tool with a safety annotation and a useful description", 
     "add_item",
     "delete_item",
     "due_soon",
+    "export_calendar",
     "get_item",
     "get_stats",
     "list_items",
@@ -229,4 +230,21 @@ test("delete_item needs an exact title, and restore_item brings it back", async 
   assert.equal((await call("get_item", { item: "Rent" })).isError, true);
   const restored = await call("restore_item", { item: "Rent" });
   assert.match(restored.text, /Due: 2027-04-30/);
+});
+
+test("export_calendar writes an importable file into the folder's exports/", async () => {
+  const result = await call("export_calendar");
+  assert.equal(result.isError, false, result.text);
+  const file = path.join(folder, "exports", "life-admin.ics");
+  assert.match(result.text, new RegExp(`Wrote \\d+ item\\(s\\) to ${file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+  assert.match(result.text, /References and notes are left out/);
+  const ics = await fs.readFile(file, "utf-8");
+  assert.match(ics, /^BEGIN:VCALENDAR\r\n/);
+  assert.match(ics, /SUMMARY:Car insurance: renews/);
+  assert.match(ics, /Example Motor Insurance/);
+  assert.doesNotMatch(ics, /comparison site/, "history notes stay out");
+
+  const minimal = await call("export_calendar", { minimal: true });
+  assert.match(minimal.text, /Titles and dates only/);
+  assert.doesNotMatch(await fs.readFile(file, "utf-8"), /Example Motor Insurance/);
 });

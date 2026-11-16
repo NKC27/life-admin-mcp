@@ -6,6 +6,8 @@ import { describeSource, type FolderLocation } from "./config.js";
 import { describeDays, dueStatus, rollForward, today } from "./dates.js";
 import { ITEM_TYPES, PERIODS, type Item, type ItemInput } from "./types.js";
 import { appendHistory, formatMoney, percentChange } from "./util.js";
+import { dueReport, itemLine } from "./report.js";
+import { buildCalendar } from "./calendar.js";
 import { VERSION } from "./version.js";
 
 const INSTRUCTIONS =
@@ -13,7 +15,8 @@ const INSTRUCTIONS =
   "stored as a markdown file on the user's own machine. Use due_soon to see what needs attention, add_item to " +
   "track something new (search_items first to avoid duplicates), and mark_handled once the user has dealt with " +
   "a renewal or payment. Store only the last four digits of any account or card number. Never invent dates or " +
-  "prices; ask the user. Nothing here sends reminders by itself.";
+  "prices; ask the user. Nothing here sends reminders by itself: export_calendar puts due dates and reminders " +
+  "into the user's own calendar app, so never promise a reminder without it.";
 
 // Tool annotations let clients tell safe reads from writes and decide when to ask for approval.
 const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
@@ -28,23 +31,6 @@ function textResult(text: string, isError = false) {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
-}
-
-function formatCost(item: Item): string {
-  if (item.cost === undefined) return "";
-  const money = formatMoney(item.cost, item.currency);
-  return item.period === "one-off" ? money : `${money}/${item.period.replace(/ly$/, "")}`;
-}
-
-/** One-line summary used by every listing. */
-export function itemLine(item: Item, extra = ""): string {
-  const parts = [`**${item.title}** (${item.type})`];
-  if (item.provider) parts.push(item.provider);
-  const cost = formatCost(item);
-  if (cost) parts.push(cost);
-  if (item.due) parts.push(`due ${item.due}${extra ? `, ${extra}` : ""}`);
-  if (item.auto_renews) parts.push("renews automatically");
-  return `- ${parts.join(" · ")}`;
 }
 
 /** Item fields shared by add_item and update_item. */
@@ -230,31 +216,7 @@ export function createServer(store: Store, location: FolderLocation): McpServer 
       },
       annotations: READ_ONLY,
     },
-    async ({ days, type }) => {
-      const window = days ?? 30;
-      const todayDate = today();
-      const overdue: string[] = [];
-      const upcoming: string[] = [];
-      const early: string[] = [];
-      const dated = (await store.loadAll())
-        .filter((i): i is Item & { due: string } => i.due !== undefined && (!type || i.type === type))
-        .sort((a, b) => a.due.localeCompare(b.due) || a.title.localeCompare(b.title));
-      for (const item of dated) {
-        const s = dueStatus(item.due, todayDate, item.remind_days);
-        if (s.overdue) overdue.push(itemLine(item, describeDays(s.daysLeft)));
-        else if (s.daysLeft <= window) upcoming.push(itemLine(item, describeDays(s.daysLeft)));
-        else if (s.remindersOn)
-          early.push(itemLine(item, `${describeDays(s.daysLeft)}, reminders started ${s.remindFrom}`));
-      }
-
-      const sections = [`Today is ${todayDate}.`];
-      if (overdue.length) sections.push(`Overdue:\n${overdue.join("\n")}`);
-      if (upcoming.length) sections.push(`Due in the next ${window} days:\n${upcoming.join("\n")}`);
-      if (early.length) sections.push(`Further out, but the reminder window is open:\n${early.join("\n")}`);
-      if (!overdue.length && !upcoming.length && !early.length)
-        sections.push(`Nothing overdue or due in the next ${window} days.`);
-      return textResult(sections.join("\n\n"));
-    }
+    async ({ days, type }) => textResult(dueReport(await store.loadAll(), today(), days ?? 30, type))
   );
 
   // ---------------------------------------------------------------------------
@@ -407,6 +369,40 @@ export function createServer(store: Store, location: FolderLocation): McpServer 
       } catch (err) {
         return textResult(errorMessage(err), true);
       }
+    }
+  );
+
+  server.registerTool(
+    "export_calendar",
+    {
+      title: "Export to calendar",
+      description:
+        "Write every item that has a due date to an .ics file the user can import into Apple Calendar, Google " +
+        "Calendar or Outlook. Each item becomes an all-day event with a 9am reminder when its reminder window " +
+        "opens and another on the day; repeating items repeat in the calendar. After changes, export again and " +
+        "import into the same calendar to update the events. Provider and cost are included unless `minimal` is " +
+        "true; references and notes never are. Calendars often sync to a cloud account, so tell the user that.",
+      inputSchema: {
+        minimal: z.boolean().optional().describe("Leave out provider and cost (titles and dates only)"),
+      },
+      annotations: { ...WRITE, idempotentHint: true },
+    },
+    async ({ minimal }) => {
+      const { ics, events, skipped } = buildCalendar(await store.loadAll(), new Date(), { minimal });
+      if (!events) return textResult("No items have a due date yet, so there is nothing to put in a calendar.");
+      const file = await store.writeExport("life-admin.ics", ics);
+      return textResult(
+        [
+          `Wrote ${events} item(s) to ${file}`,
+          skipped ? `${skipped} item(s) without a due date were left out.` : "",
+          minimal ? "Titles and dates only." : "Events include provider and cost. References and notes are left out.",
+          "To add them: on a Mac, double-click the file to open it in Calendar. In Google Calendar, use " +
+            'Settings > Import & export > Import. Import into a calendar of its own (such as "Life Admin"), and ' +
+            "import later exports into the same one so events are updated rather than duplicated.",
+        ]
+          .filter(Boolean)
+          .join("\n")
+      );
     }
   );
 

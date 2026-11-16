@@ -1,6 +1,6 @@
 # Life Admin MCP
 
-> **Work in progress (0.1.0, not yet published).** Tracking works; calendar export and the agent skill come next.
+> **Work in progress (0.1.0, not yet published).** Tracking and calendar export work; the agent skill comes next.
 
 Local-first life admin for AI agents. Your renewals, bills, subscriptions, warranties, policies and documents live as plain markdown files in a folder you own (`~/LifeAdmin`), and any [MCP](https://modelcontextprotocol.io) client (Claude Code, Claude Desktop, Cursor, VS Code) can track them for you.
 
@@ -10,6 +10,8 @@ Local-first life admin for AI agents. Your renewals, bills, subscriptions, warra
 npm install && npm run build
 node dist/index.js init      # creates ~/LifeAdmin and prints the setup for your AI client
 node dist/index.js doctor    # checks everything, including a live handshake
+node dist/index.js due       # what's overdue and due in the next 30 days
+node dist/index.js ics       # write a calendar file of every due date
 ```
 
 ## Tools
@@ -23,9 +25,19 @@ node dist/index.js doctor    # checks everything, including a live handshake
 | `mark_handled` | Log that it was dealt with and move the due date on (month-end dates stay right); logs price changes |
 | `search_items`, `list_items` | Find things by words, type or due date |
 | `delete_item`, `restore_item` | Delete to a recoverable trash (exact title only), and bring it back |
+| `export_calendar` | Write an `.ics` file for Apple Calendar, Google Calendar or Outlook |
 | `get_stats` | Folder location, counts, what's overdue and due soon |
 
-No tool sends reminders by itself: an agent only acts when you talk to it. Calendar export is next on the list for that.
+## Reminders through your calendar
+
+An AI agent only acts when you talk to it, so reminders go through your own calendar instead. `export_calendar` (or `life-admin-mcp ics`) writes `exports/life-admin.ics`:
+
+- Each item with a due date becomes an all-day event, with a 9am reminder when its reminder window opens and another on the day.
+- Repeating items repeat in the calendar, matching `mark_handled` exactly. Only repeat rules every calendar app supports are used; February dates for bills on the 29th or 30th are added as separate events five years ahead.
+- Event IDs are stable, so importing a new export into the same calendar updates events instead of duplicating them (in apps that match on event ID).
+- Provider and cost are included unless you ask for a minimal export. References and notes are never included. Calendars often sync to a cloud account, so keep that in mind.
+
+
 
 ## What an item looks like
 

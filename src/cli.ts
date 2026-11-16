@@ -7,6 +7,9 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { defaultHomeFolder, describeSource, resolveFolder } from "./config.js";
 import { Store } from "./store.js";
 import { containsCardNumber } from "./util.js";
+import { today } from "./dates.js";
+import { dueReport } from "./report.js";
+import { buildCalendar } from "./calendar.js";
 import { VERSION } from "./version.js";
 
 const PACKAGE = "@nkc27/life-admin-mcp";
@@ -18,6 +21,9 @@ Usage:
   life-admin-mcp                 Start the MCP server on stdio (what your AI client runs)
   life-admin-mcp init [--dir D]  Create your own folder (default: ~/LifeAdmin) and print setup steps
   life-admin-mcp doctor          Check your setup and run a live handshake against the server
+  life-admin-mcp due [--days N]  Print what's overdue and due soon (default: next 30 days)
+  life-admin-mcp ics [--out F] [--minimal]
+                                 Write a calendar file of every due date (default: <folder>/exports/life-admin.ics)
   life-admin-mcp --version       Print the version
 
 Environment:
@@ -49,6 +55,10 @@ export async function runCli(args: string[]): Promise<number | null> {
       return init(rest);
     case "doctor":
       return doctor();
+    case "due":
+      return due(rest);
+    case "ics":
+      return ics(rest);
     default:
       console.error(`Unknown command "${command}".\n\n${HELP}`);
       return 2;
@@ -225,4 +235,72 @@ async function doctor(): Promise<number> {
   const failed = results.some((r) => r.level === "fail");
   console.log(failed ? "\nSome checks failed." : "\nEverything needed to run looks good.");
   return failed ? 1 : 0;
+}
+
+// ---------------------------------------------------------------------------
+// due and ics
+// ---------------------------------------------------------------------------
+
+/** Value after `--flag`, or undefined. Returns null when the flag is present without a value. */
+function flagValue(args: string[], flag: string): string | undefined | null {
+  const i = args.indexOf(flag);
+  if (i < 0) return undefined;
+  const value = args[i + 1];
+  return value === undefined || value.startsWith("--") ? null : value;
+}
+
+async function openStore(): Promise<{ store: Store; demo: boolean }> {
+  const location = resolveFolder();
+  return { store: new Store(location.path), demo: location.source === "demo" };
+}
+
+async function due(args: string[]): Promise<number> {
+  const raw = flagValue(args, "--days");
+  const days = raw === undefined ? 30 : Number(raw);
+  if (raw === null || !Number.isInteger(days) || days < 1 || days > 366) {
+    console.error("--days needs a whole number from 1 to 366.");
+    return 2;
+  }
+  const { store, demo } = await openStore();
+  // Plain text in a terminal, so drop the markdown bold markers.
+  console.log(dueReport(await store.loadAll(), today(), days).replace(/\*\*/g, ""));
+  if (demo) console.log(`\n(These are the demo items. Run \`npx -y ${PACKAGE} init\` to start your own.)`);
+  return 0;
+}
+
+async function ics(args: string[]): Promise<number> {
+  const out = flagValue(args, "--out");
+  if (out === null) {
+    console.error("--out needs a file path.");
+    return 2;
+  }
+  if (out !== undefined && !out.toLowerCase().endsWith(".ics")) {
+    console.error("--out must be a file ending in .ics.");
+    return 2;
+  }
+  const { store, demo } = await openStore();
+  const {
+    ics: text,
+    events,
+    skipped,
+  } = buildCalendar(await store.loadAll(), new Date(), {
+    minimal: args.includes("--minimal"),
+  });
+  if (!events) {
+    console.log("No items have a due date yet, so there is nothing to put in a calendar.");
+    return 0;
+  }
+  let file: string;
+  if (out) {
+    file = path.resolve(out);
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, text, "utf-8");
+  } else {
+    file = await store.writeExport("life-admin.ics", text);
+  }
+  console.log(`Wrote ${events} item(s) to ${file}`);
+  if (skipped) console.log(`${skipped} item(s) without a due date were left out.`);
+  console.log('Open it with your calendar app, ideally into a calendar of its own such as "Life Admin".');
+  if (demo) console.log(`(These are the demo items. Run \`npx -y ${PACKAGE} init\` to start your own.)`);
+  return 0;
 }

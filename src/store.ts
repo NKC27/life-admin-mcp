@@ -270,6 +270,15 @@ export class Store {
     return saved;
   }
 
+  /** Write a generated file (such as a calendar export) to `exports/` and return its full path. */
+  async writeExport(fileName: string, content: string): Promise<string> {
+    const dir = path.join(this.root, "exports");
+    await fs.mkdir(dir, { recursive: true });
+    const file = this.inside(dir, fileName);
+    await fs.writeFile(file, content, "utf-8");
+    return file;
+  }
+
   /** Move an item to `.trash/` so it can be restored. */
   async delete(slug: string): Promise<boolean> {
     try {

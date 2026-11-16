@@ -113,3 +113,39 @@ test("doctor on the demo folder warns you to create your own", async () => {
   assert.match(result.stdout, /Every item file is well formed/);
   await fs.rm(home, { recursive: true, force: true });
 });
+
+test("due prints the report in plain text and validates --days", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "la-cli-due-"));
+  const result = await cli(["due", "--days", "120"], { HOME: home, LIFE_ADMIN_TODAY: "2026-11-11" });
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /Today is 2026-11-11\./);
+  assert.match(result.stdout, /- Streaming service \(subscription\).*in 17 days/);
+  assert.match(result.stdout, /Car insurance.*in 112 days/);
+  assert.doesNotMatch(result.stdout, /\*\*/, "no markdown in the terminal");
+  assert.match(result.stdout, /demo items/);
+  assert.equal((await cli(["due", "--days", "0"], { HOME: home })).code, 2);
+  assert.equal((await cli(["due", "--days"], { HOME: home })).code, 2);
+  await fs.rm(home, { recursive: true, force: true });
+});
+
+test("ics writes a calendar file where asked, and only to .ics paths", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "la-cli-ics-"));
+  await fs.cp(path.join(projectRoot, "demo"), path.join(dir, "admin"), { recursive: true });
+  const env = { LIFE_ADMIN_PATH: path.join(dir, "admin") };
+
+  const out = path.join(dir, "Desktop", "my-admin.ics");
+  const result = await cli(["ics", "--out", out], env);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /Wrote 4 item\(s\) to .*my-admin\.ics/);
+  assert.match(await fs.readFile(out, "utf-8"), /END:VCALENDAR\r\n$/);
+
+  const fallback = await cli(["ics", "--minimal"], env);
+  assert.equal(fallback.code, 0);
+  const written = await fs.readFile(path.join(dir, "admin", "exports", "life-admin.ics"), "utf-8");
+  assert.doesNotMatch(written, /Example Motor Insurance/);
+
+  const bad = await cli(["ics", "--out", path.join(dir, "notes.md")], env);
+  assert.equal(bad.code, 2);
+  assert.match(bad.stderr, /\.ics/);
+  await fs.rm(dir, { recursive: true, force: true });
+});
