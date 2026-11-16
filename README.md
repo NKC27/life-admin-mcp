@@ -50,6 +50,12 @@ Also: `due` prints what's coming up, and `ics` writes a calendar file. Set `LIFE
 
 Item types: bill, renewal, subscription, policy, warranty, vehicle, document, income, birthday and reminder.
 
+## Agent skill
+
+Tools are only half of it: an assistant also needs to know *how* to use them well. [`skill/life-admin/`](skill/life-admin) is a free `SKILL.md` that teaches it to never invent dates or prices, keep card numbers out, ask before importing or deleting, never promise a reminder it can't send, and treat pushy "pay now" emails as possible scams. Copy the folder into your assistant's skills directory, or build a zip with `npm run package-skill`.
+
+A test checks the skill against the live server, so every tool and argument it names really exists. `npm run eval:skill` runs behaviour scenarios in real Claude sessions (needs the `claude` CLI signed in).
+
 ## Private and careful by design
 
 - **Stays on your computer.** Plain markdown and CSV files in `~/LifeAdmin` that open in any editor or Excel. The server never uses the internet, and the home screen only answers this computer.

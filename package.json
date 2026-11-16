@@ -12,6 +12,7 @@
     "dist",
     "demo/items",
     "demo/money",
+    "skill/life-admin",
     "CHANGELOG.md"
   ],
   "scripts": {
@@ -20,8 +21,10 @@
     "start": "node dist/index.js",
     "inspect": "npm run build && npx @modelcontextprotocol/inspector node dist/index.js",
     "test": "npm run build && node --import tsx --test test/*.test.ts",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"scripts/**/*.ts\" \"skill/evals/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"scripts/**/*.ts\" \"skill/evals/**/*.ts\"",
+    "eval:skill": "npm run build && tsx scripts/eval-skill.ts",
+    "package-skill": "rm -f life-admin-skill.zip && cd skill && zip -r ../life-admin-skill.zip life-admin -x '*.DS_Store'",
     "prepublishOnly": "npm test"
   },
   "engines": {
