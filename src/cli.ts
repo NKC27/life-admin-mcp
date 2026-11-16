@@ -10,6 +10,7 @@ import { containsCardNumber } from "./util.js";
 import { today } from "./dates.js";
 import { dueReport } from "./report.js";
 import { buildCalendar } from "./calendar.js";
+import { openInBrowser, startDashboard } from "./dashboard.js";
 import { VERSION } from "./version.js";
 
 const PACKAGE = "@nkc27/life-admin-mcp";
@@ -21,6 +22,8 @@ Usage:
   life-admin-mcp                 Start the MCP server on stdio (what your AI client runs)
   life-admin-mcp init [--dir D]  Create your own folder (default: ~/LifeAdmin) and print setup steps
   life-admin-mcp doctor          Check your setup and run a live handshake against the server
+  life-admin-mcp dashboard [--port N] [--no-open]
+                                 Open the home screen in your browser (this computer only)
   life-admin-mcp due [--days N]  Print what's overdue and due soon (default: next 30 days)
   life-admin-mcp ics [--out F] [--minimal]
                                  Write a calendar file of every due date (default: <folder>/exports/life-admin.ics)
@@ -57,6 +60,8 @@ export async function runCli(args: string[]): Promise<number | null> {
       return doctor();
     case "due":
       return due(rest);
+    case "dashboard":
+      return dashboard(rest);
     case "ics":
       return ics(rest);
     default:
@@ -302,5 +307,26 @@ async function ics(args: string[]): Promise<number> {
   if (skipped) console.log(`${skipped} item(s) without a due date were left out.`);
   console.log('Open it with your calendar app, ideally into a calendar of its own such as "Life Admin".');
   if (demo) console.log(`(These are the demo items. Run \`npx -y ${PACKAGE} init\` to start your own.)`);
+  return 0;
+}
+
+async function dashboard(args: string[]): Promise<number> {
+  const raw = flagValue(args, "--port");
+  const port = raw === undefined ? 4747 : Number(raw);
+  if (raw === null || !Number.isInteger(port) || port < 0 || port > 65535) {
+    console.error("--port needs a number from 0 to 65535.");
+    return 2;
+  }
+  const { store } = await openStore();
+  const running = await startDashboard(store, port);
+  console.log(`Your home screen is at ${running.url}`);
+  console.log("It is only visible on this computer. Press Ctrl+C to stop it.");
+  if (!args.includes("--no-open")) openInBrowser(running.url);
+  await new Promise<void>((resolve) => {
+    const stop = () => resolve();
+    process.once("SIGINT", stop);
+    process.once("SIGTERM", stop);
+  });
+  await running.close();
   return 0;
 }

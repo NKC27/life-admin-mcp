@@ -8,8 +8,10 @@
   },
   "files": [
     "data",
+    "dashboard",
     "dist",
     "demo/items",
+    "demo/money",
     "CHANGELOG.md"
   ],
   "scripts": {

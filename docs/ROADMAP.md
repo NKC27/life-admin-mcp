@@ -1,6 +1,6 @@
 # Life Admin: roadmap
 
-_Written 2026-11-16. Status: steps 1-3 done (storage, tracking tools, calendar export; 74 tests). This plan covers what comes next._
+_Written 2026-11-16, updated the same day. Done: storage, tracking tools, calendar export, money core, birthdays, reminders, UK bank holidays and the home screen (115 tests). Next: the skill, then shipping._
 
 ## The promise
 
@@ -106,6 +106,11 @@ Status in this setup: Gmail, Google Calendar and Google Drive are connected. Mic
   - insurance renewal pricing rules
   - passport and driving licence renewal
   - boiler service
+- **Everyday paperwork, explained** (checked against gov.uk and the regulators, with sources):
+  - **Payslips:** read a pasted or uploaded payslip and check the tax code (flag emergency codes such as 0T, BR or W1/M1), National Insurance, pension contributions and student loan, and say what to ask payroll or HMRC about. It never says the figures are wrong for certain.
+  - **Pensions:** pension payments as income, a reminder to check the State Pension forecast on gov.uk, and tracking workplace pension statements.
+  - **Council tax:** asking for 12 monthly instalments instead of 10, the 25% single-person discount, and how to challenge a band.
+  - **Insurance renewals:** comparing the renewal price with last year's (already logged by `mark_handled`), the rule that renewal prices can't exceed the new-customer price, and a short haggle-or-switch script.
 - **"Are you missing out?" signposts:** free benefits calculators (for example Pension Credit, which many eligible pensioners don't claim), Warm Home Discount, and social tariffs for broadband. Signposting only, never eligibility decisions.
 - **Behaviour tests** (like Second Brain), checking that it:
   - never invents a figure

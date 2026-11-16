@@ -1,79 +1,74 @@
 # Life Admin MCP
 
-> **Work in progress (0.1.0, not yet published).** Tracking and calendar export work; the agent skill comes next.
+**Never miss a bill, never pay a loyalty penalty, and always know what's safe to spend.**
 
-Local-first life admin for AI agents. Your renewals, bills, subscriptions, warranties, policies and documents live as plain markdown files in a folder you own (`~/LifeAdmin`), and any [MCP](https://modelcontextprotocol.io) client (Claude Code, Claude Desktop, Cursor, VS Code) can track them for you.
+Your bills, renewals, subscriptions, birthdays and spending, kept as plain files on your own computer, and looked after by your AI assistant (Claude Code, Claude Desktop, Cursor, VS Code or any [MCP](https://modelcontextprotocol.io) client). Made for the UK.
 
-## Quick start (from a checkout)
+> **Work in progress (0.1.0, not yet published).** Everything below works and is tested (115 tests); one-click install and the companion skill come next.
+
+![The home screen: what's coming up, next payday, this week's spending and the rainy-day pot](docs/screenshots/home-screen.png)
+
+## What it does
+
+- **Remembers the dates.** Renewals, bills, subscriptions, warranties, MOT, passport, birthdays and appointments, with reminders in your own calendar.
+- **Bills before payday.** Lists what goes out before your next pay or pension, and moves payday to the working day before when it falls on a weekend or bank holiday.
+- **Shows where the money goes.** Import a bank statement (every UK bank app can export one) and see this week or month by category, compared with what's usual for you.
+- **Rainy-day planner.** Spreads big yearly bills into monthly amounts, then suggests Gentle, Steady or Stretch saving amounts, each checked against your tightest recent month.
+- **Spots price rises.** Records the old and new price at every renewal, so loyalty penalties are visible.
+- **A calm home screen.** Large text, plain words, light and dark colours, and a Print button for the fridge.
+- **UK bank holidays** for England and Wales, Scotland and Northern Ireland, built in.
+
+## Try it
+
+Ask your assistant things like:
+
+- *"Add my car insurance: £412 a year, renews 3 March."*
+- *"What's coming up this month?"*
+- *"Import my bank statement from Downloads."*
+- *"How much could I put aside for a rainy day?"*
+- *"Put my renewals in my calendar."*
+- *"Show me my home screen."*
+
+## Set up (from a checkout)
 
 ```bash
 npm install && npm run build
-node dist/index.js init      # creates ~/LifeAdmin and prints the setup for your AI client
-node dist/index.js doctor    # checks everything, including a live handshake
-node dist/index.js due       # what's overdue and due in the next 30 days
-node dist/index.js ics       # write a calendar file of every due date
+node dist/index.js init        # creates ~/LifeAdmin and prints the line to connect your assistant
+node dist/index.js doctor      # checks everything, including a live connection test
+node dist/index.js dashboard   # opens the home screen in your browser
 ```
+
+Also: `due` prints what's coming up, and `ics` writes a calendar file. Set `LIFE_ADMIN_REGION` to `scotland` or `northern-ireland` for local bank holidays.
 
 ## Tools
 
-| Tool | Does |
+| Area | Tools |
 | --- | --- |
-| `due_soon` | Overdue items, items due in the next N days (default 30), and items further out whose reminder window has opened |
-| `add_item` | Start tracking something; refuses duplicates, card numbers and impossible dates |
-| `get_item` | Full details, days left, when reminders start, notes and history |
-| `update_item` | Change, clear or add a dated note; untouched fields stay as they are |
-| `mark_handled` | Log that it was dealt with and move the due date on (month-end dates stay right); logs price changes |
-| `search_items`, `list_items` | Find things by words, type or due date |
-| `delete_item`, `restore_item` | Delete to a recoverable trash (exact title only), and bring it back |
-| `export_calendar` | Write an `.ics` file for Apple Calendar, Google Calendar or Outlook |
-| `get_stats` | Folder location, counts, what's overdue and due soon |
+| Dates and renewals | `due_soon`, `add_item`, `get_item`, `update_item`, `mark_handled`, `search_items`, `list_items`, `delete_item`, `restore_item` |
+| Money | `import_bank_file`, `add_spending`, `categorise`, `spending_summary`, `money_ahead`, `rainy_day_plan`, `update_pot` |
+| Calendar and screen | `export_calendar`, `bank_holidays`, `open_home_screen`, `get_stats` |
 
-## Reminders through your calendar
+Item types: bill, renewal, subscription, policy, warranty, vehicle, document, income, birthday and reminder.
 
-An AI agent only acts when you talk to it, so reminders go through your own calendar instead. `export_calendar` (or `life-admin-mcp ics`) writes `exports/life-admin.ics`:
+## Private and careful by design
 
-- Each item with a due date becomes an all-day event, with a 9am reminder when its reminder window opens and another on the day.
-- Repeating items repeat in the calendar, matching `mark_handled` exactly. Only repeat rules every calendar app supports are used; February dates for bills on the 29th or 30th are added as separate events five years ahead.
-- Event IDs are stable, so importing a new export into the same calendar updates events instead of duplicating them (in apps that match on event ID).
-- Provider and cost are included unless you ask for a minimal export. References and notes are never included. Calendars often sync to a cloud account, so keep that in mind.
-
-
-
-## What an item looks like
-
-```markdown
----
-title: Car insurance
-type: policy            # renewal | bill | subscription | warranty | policy | vehicle | document
-provider: Example Motor Insurance
-cost: 412
-currency: GBP
-period: yearly          # one-off | weekly | monthly | quarterly | yearly
-due: '2027-03-03'       # next renewal, payment or expiry
-remind_days: 21         # start reminding this many days before
-auto_renews: true
-ref: …7731              # last four only
----
-## History
-- 2026-03-03 Renewed at £412 (was £356)
-```
-
-## Safety and privacy
-
-- **Local only.** Nothing leaves your computer.
-- **No full card numbers.** The server refuses anything that looks like a card number and keeps only the last four characters of a reference.
-- **Dates are never moved.** An impossible date such as `2027-02-30` is reported by `doctor`, not silently rolled over to another day.
-- **Recoverable deletes.** Deleted items go to `.trash/`.
-- **Month-end dates stay right.** A bill due on the 31st goes 31 Jan → 28 Feb → 31 Mar, and a 29 February renewal returns to the 29th in leap years.
+- **Stays on your computer.** Plain markdown and CSV files in `~/LifeAdmin` that open in any editor or Excel. The server never uses the internet, and the home screen only answers this computer.
+- **No full card numbers.** Card numbers are refused or masked to the last four digits.
+- **Never invents figures.** Every amount comes from your own records or what you typed. Impossible dates are flagged, never quietly changed.
+- **Budgeting help, not financial advice.** The planner does sums on your own figures and never recommends financial products. It points to free help: MoneyHelper, and StepChange for debt.
+- **Reminders you can trust.** An AI assistant can't nudge you by itself, so reminders go into your own calendar. Repeats match the app's own date logic exactly, and month ends stay right (31 Jan → 28 Feb → 31 Mar).
+- **Safe to undo.** Deleted items go to a trash folder and can be restored. Bank imports preview before saving and skip duplicates.
 
 ## Development
 
 ```bash
-npm test             # build, then unit, CLI and end-to-end MCP tests
-npm run format       # prettier
+npm test         # build, then unit, CLI, calendar, dashboard and end-to-end MCP tests
+npm run format   # prettier
 ```
 
-Set `LIFE_ADMIN_TODAY=YYYY-MM-DD` to pretend it is another day (handy for testing), and `DEBUG_MCP=1` for debug logging on stderr (stdout is reserved for the protocol).
+`LIFE_ADMIN_TODAY=YYYY-MM-DD` pretends it's another day (for tests and demos). `npx tsx scripts/make-demo-money.ts` rebuilds the fictional demo spending.
+
+Bank holiday dates come from [gov.uk](https://www.gov.uk/bank-holidays): contains public sector information licensed under the Open Government Licence v3.0.
 
 ## Licence
 

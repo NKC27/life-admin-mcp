@@ -11,6 +11,7 @@ import { buildCalendar } from "./calendar.js";
 import { VERSION } from "./version.js";
 import { MoneyStore } from "./money.js";
 import { registerMoneyTools } from "./money-tools.js";
+import { openInBrowser, startDashboard, type RunningDashboard } from "./dashboard.js";
 import { defaultRegion, REGION_NAMES, upcomingHolidays } from "./holidays.js";
 
 const INSTRUCTIONS =
@@ -464,6 +465,27 @@ export function createServer(store: Store, location: FolderLocation): McpServer 
   );
 
   registerMoneyTools(server, store, new MoneyStore(store.root));
+
+  let dashboard: RunningDashboard | undefined;
+  server.registerTool(
+    "open_home_screen",
+    {
+      title: "Open home screen",
+      description:
+        "Open the person's home screen in their web browser: what's coming up, the next payday and the bills " +
+        "before it, this week's spending and the rainy-day pot, in large, calm print with a Print button. It runs " +
+        "only on this computer, and stays available while this assistant session is open.",
+      inputSchema: {},
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    async () => {
+      dashboard ??= await startDashboard(store, Number(process.env.LIFE_ADMIN_PORT ?? 4747));
+      openInBrowser(dashboard.url);
+      return textResult(
+        `The home screen is open at ${dashboard.url} (only on this computer). If no browser window appeared, open that address yourself.`
+      );
+    }
+  );
 
   return server;
 }

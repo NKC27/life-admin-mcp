@@ -12,3 +12,7 @@
 - `LIFE_ADMIN_TODAY` pins today's date for tests and demos.
 - Calendar export (`export_calendar` tool and `ics` command): all-day events with 9am reminders, repeats that match `mark_handled` (checked against ical.js), stable event IDs, no references or notes, optional minimal mode.
 - `due` command prints what's overdue and due soon in the terminal.
+- Money: bank statement import (common UK layouts, preview first, duplicates skipped, spreadsheet-formula-safe CSV), typed spending, category rules, weekly and monthly summaries against what's usual, bills before payday, and a rainy-day planner with risk checks and set-asides for big yearly bills.
+- Birthdays and reminders as item types; paydays (income) kept out of due lists and the calendar.
+- UK bank holidays bundled from gov.uk; paydays on weekends or bank holidays move to the working day before.
+- Home screen (`dashboard` command, `open_home_screen` tool): large text, light and dark, print-friendly, served to this computer only.

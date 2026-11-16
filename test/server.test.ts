@@ -35,6 +35,8 @@ before(async () => {
   >;
   env.LIFE_ADMIN_PATH = folder;
   env.LIFE_ADMIN_TODAY = TODAY;
+  env.LIFE_ADMIN_NO_BROWSER = "1";
+  env.LIFE_ADMIN_PORT = "0";
   client = new Client({ name: "e2e-test", version: "0.0.0" });
   await client.connect(new StdioClientTransport({ command: process.execPath, args: [serverEntry], env }));
 });
@@ -60,6 +62,7 @@ test("advertises every tool with a safety annotation and a useful description", 
     "list_items",
     "mark_handled",
     "money_ahead",
+    "open_home_screen",
     "rainy_day_plan",
     "restore_item",
     "search_items",
@@ -372,4 +375,19 @@ test("bank_holidays lists the official dates for a region", async () => {
   assert.match(scotland.text, /Bank holidays in Scotland/);
   assert.match(scotland.text, /St Andrew/);
   assert.match(scotland.text, /runs to the end of 2028 \(source: gov\.uk\)/);
+});
+
+test("open_home_screen starts the home screen on this computer only", async () => {
+  const result = await call("open_home_screen");
+  assert.equal(result.isError, false, result.text);
+  const url = result.text.match(/http:\/\/127\.0\.0\.1:\d+\//)?.[0];
+  assert.ok(url, result.text);
+  const page = await fetch(url!);
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /Coming up/);
+  assert.equal(
+    (await call("open_home_screen")).text.match(/127\.0\.0\.1:\d+/)?.[0],
+    url!.match(/127\.0\.0\.1:\d+/)?.[0],
+    "reuses the same one"
+  );
 });
