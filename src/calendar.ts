@@ -22,6 +22,9 @@ const PHRASE: Record<ItemType, string> = {
   policy: "renews",
   vehicle: "due",
   document: "expires",
+  income: "payday",
+  birthday: "birthday",
+  reminder: "reminder",
 };
 
 export interface CalendarOptions {
@@ -143,6 +146,9 @@ export function alarmTrigger(daysBefore: number): string {
 }
 
 export function eventSummary(item: Item): string {
+  // Birthdays and reminders read best as their own title ("Mum's birthday", "Dentist").
+  if (item.type === "birthday" && !/birthday/i.test(item.title)) return `${item.title}'s birthday`;
+  if (item.type === "birthday" || item.type === "reminder") return item.title;
   return `${item.title}: ${PHRASE[item.type]}`;
 }
 
@@ -212,7 +218,7 @@ export function buildCalendar(
   options: CalendarOptions = {}
 ): { ics: string; events: number; skipped: number } {
   const dated = items
-    .filter((i): i is Item & { due: string } => i.due !== undefined)
+    .filter((i): i is Item & { due: string } => i.due !== undefined && i.type !== "income")
     .sort((a, b) => a.due.localeCompare(b.due) || a.slug.localeCompare(b.slug));
   const stamp = utcStamp(now);
   const lines = [
@@ -228,6 +234,6 @@ export function buildCalendar(
   return {
     ics: `${lines.map(foldLine).join("\r\n")}\r\n`,
     events: dated.length,
-    skipped: items.length - dated.length,
+    skipped: items.filter((i) => i.due === undefined).length,
   };
 }

@@ -15,7 +15,8 @@ export function itemLine(item: Item, extra = ""): string {
   if (item.provider) parts.push(item.provider);
   const cost = formatCost(item);
   if (cost) parts.push(cost);
-  if (item.due) parts.push(`due ${item.due}${extra ? `, ${extra}` : ""}`);
+  const on = item.type === "birthday" || item.type === "reminder" || item.type === "income" ? "on" : "due";
+  if (item.due) parts.push(`${on} ${item.due}${extra ? `, ${extra}` : ""}`);
   if (item.auto_renews) parts.push("renews automatically");
   return `- ${parts.join(" · ")}`;
 }
@@ -29,7 +30,9 @@ export function dueReport(items: Item[], todayDate: string, window: number, type
   const upcoming: string[] = [];
   const early: string[] = [];
   const dated = items
-    .filter((i): i is Item & { due: string } => i.due !== undefined && (!type || i.type === type))
+    .filter(
+      (i): i is Item & { due: string } => i.due !== undefined && i.type !== "income" && (!type || i.type === type)
+    )
     .sort((a, b) => a.due.localeCompare(b.due) || a.title.localeCompare(b.title));
   for (const item of dated) {
     const s = dueStatus(item.due, todayDate, item.remind_days);

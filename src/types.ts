@@ -1,4 +1,15 @@
-export const ITEM_TYPES = ["renewal", "bill", "subscription", "warranty", "policy", "vehicle", "document"] as const;
+export const ITEM_TYPES = [
+  "renewal",
+  "bill",
+  "subscription",
+  "warranty",
+  "policy",
+  "vehicle",
+  "document",
+  "income",
+  "birthday",
+  "reminder",
+] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
 
 export const PERIODS = ["one-off", "weekly", "monthly", "quarterly", "yearly"] as const;

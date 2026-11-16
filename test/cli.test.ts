@@ -136,7 +136,7 @@ test("ics writes a calendar file where asked, and only to .ics paths", async () 
   const out = path.join(dir, "Desktop", "my-admin.ics");
   const result = await cli(["ics", "--out", out], env);
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /Wrote 4 item\(s\) to .*my-admin\.ics/);
+  assert.match(result.stdout, /Wrote 6 item\(s\) to .*my-admin\.ics/);
   assert.match(await fs.readFile(out, "utf-8"), /END:VCALENDAR\r\n$/);
 
   const fallback = await cli(["ics", "--minimal"], env);

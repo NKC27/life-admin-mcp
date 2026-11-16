@@ -199,3 +199,18 @@ test("the same items always give the same UIDs, so re-imports update instead of 
   const later = events(buildCalendar([{ ...items[0]!, due: "2028-05-01" }], new Date()).ics)[0]!;
   assert.equal(first.uid, later.uid);
 });
+
+test("paydays stay out of the calendar; birthdays read naturally", () => {
+  const { ics, events: count } = buildCalendar(
+    [
+      item({ slug: "salary", title: "Salary", type: "income", due: "2026-11-25", period: "monthly" }),
+      item({ slug: "mum", title: "Mum", type: "birthday", due: "2026-12-03", period: "yearly" }),
+      item({ slug: "dentist", title: "Dentist check-up", type: "reminder", due: "2027-01-12" }),
+    ],
+    NOW
+  );
+  assert.equal(count, 2);
+  assert.doesNotMatch(ics, /Salary/);
+  assert.match(ics, /SUMMARY:Mum's birthday/);
+  assert.match(ics, /SUMMARY:Dentist check-up\r\n/);
+});

@@ -117,3 +117,11 @@ export function appendHistory(body: string, line: string): string {
   lines.splice(insertAt, 0, entry);
   return lines.join("\n");
 }
+
+/** Replace anything that looks like a full card number with its last four digits, e.g. "…1111". */
+export function maskCardNumbers(text: string): string {
+  return text.replace(/\b\d(?:[ -]?\d){12,18}\b/g, (match) => {
+    const digits = match.replace(/[ -]/g, "");
+    return containsCardNumber(digits) ? `…${digits.slice(-4)}` : match;
+  });
+}

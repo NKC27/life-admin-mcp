@@ -9,6 +9,9 @@ import { appendHistory, formatMoney, percentChange } from "./util.js";
 import { dueReport, itemLine } from "./report.js";
 import { buildCalendar } from "./calendar.js";
 import { VERSION } from "./version.js";
+import { MoneyStore } from "./money.js";
+import { registerMoneyTools } from "./money-tools.js";
+import { defaultRegion, REGION_NAMES, upcomingHolidays } from "./holidays.js";
 
 const INSTRUCTIONS =
   "Local-first life admin: renewals, bills, subscriptions, warranties, policies, vehicles and documents, each " +
@@ -36,7 +39,11 @@ function errorMessage(err: unknown): string {
 /** Item fields shared by add_item and update_item. */
 const FIELD_SCHEMA = {
   provider: z.string().max(200).optional().describe("Who it is with, e.g. 'Octopus Energy'"),
-  cost: z.number().min(0).optional().describe("Cost per period, as stated by the user. Never estimate."),
+  cost: z
+    .number()
+    .min(0)
+    .optional()
+    .describe("Cost per period as the user stated it (for income: the amount received). Never estimate."),
   currency: z.string().length(3).optional().describe("Three-letter code, default GBP"),
   period: z.enum(PERIODS).optional().describe("How often it repeats (default one-off)"),
   due: z
@@ -112,7 +119,7 @@ export function createServer(store: Store, location: FolderLocation): McpServer 
         const count = items.filter((i) => i.type === type).length;
         if (count) lines.push(`  ${type}: ${count}`);
       }
-      const dated = items.filter((i): i is Item & { due: string } => i.due !== undefined);
+      const dated = items.filter((i): i is Item & { due: string } => i.due !== undefined && i.type !== "income");
       const statuses = dated.map((i) => dueStatus(i.due, todayDate, i.remind_days));
       lines.push(`With a due date: ${dated.length}`);
       lines.push(`Overdue: ${statuses.filter((s) => s.overdue).length}`);
@@ -216,7 +223,15 @@ export function createServer(store: Store, location: FolderLocation): McpServer 
       },
       annotations: READ_ONLY,
     },
-    async ({ days, type }) => textResult(dueReport(await store.loadAll(), today(), days ?? 30, type))
+    async ({ days, type }) => {
+      const window = days ?? 30;
+      const region = defaultRegion();
+      const holidays = upcomingHolidays(today(), window, region);
+      const note = holidays.length
+        ? `\n\nBank holidays in this period (${REGION_NAMES[region]}): ${holidays.map((h) => `${h.title} ${h.date}`).join(", ")}.`
+        : "";
+      return textResult(dueReport(await store.loadAll(), today(), window, type) + note);
+    }
   );
 
   // ---------------------------------------------------------------------------
@@ -244,7 +259,12 @@ export function createServer(store: Store, location: FolderLocation): McpServer 
       if (existing && existing.title.toLowerCase() === title.trim().toLowerCase())
         return textResult(`An item called "${existing.title}" already exists. Use update_item to change it.`, true);
       try {
-        const saved = await store.save({ title, type, ...fields, body: notes });
+        // Birthdays come round every year and want a week's notice unless told otherwise.
+        const defaults =
+          type === "birthday"
+            ? { period: fields.period ?? ("yearly" as const), remind_days: fields.remind_days ?? 7 }
+            : {};
+        const saved = await store.save({ title, type, ...fields, ...defaults, body: notes });
         return textResult(`Added.\n\n${describeItem(saved, today())}`);
       } catch (err) {
         return textResult(errorMessage(err), true);
@@ -442,6 +462,8 @@ export function createServer(store: Store, location: FolderLocation): McpServer 
         : textResult(`Nothing called "${query}" in the trash.`, true);
     }
   );
+
+  registerMoneyTools(server, store, new MoneyStore(store.root));
 
   return server;
 }
