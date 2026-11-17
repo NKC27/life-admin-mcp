@@ -1,6 +1,6 @@
 {
   "name": "@nkc27/life-admin-mcp",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Local-first life admin for AI agents, served over MCP: renewals, bills, subscriptions, warranties and policies as plain markdown files you own.",
   "type": "module",
   "bin": {

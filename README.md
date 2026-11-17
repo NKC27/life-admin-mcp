@@ -4,8 +4,6 @@
 
 Your bills, renewals, subscriptions, birthdays and spending, kept as plain files on your own computer, and looked after by your AI assistant (Claude Code, Claude Desktop, Cursor, VS Code or any [MCP](https://modelcontextprotocol.io) client). Made for the UK.
 
-> **Work in progress (0.1.0, not yet published).** Everything below works and is tested; publishing comes next.
-
 ![The home screen: what's coming up, next payday, this week's spending and the rainy-day pot](docs/screenshots/home-screen.png)
 
 ## What it does
@@ -34,7 +32,7 @@ Ask your assistant things like:
 No technical steps, and nothing else to install: Claude Desktop includes everything it needs.
 
 1. Install [Claude Desktop](https://claude.ai/download) and sign in.
-2. Download **`life-admin.mcpb`**.
+2. Download **`life-admin.mcpb`** from the [latest release](https://github.com/NKC27/life-admin-mcp/releases/latest).
 3. **Double-click it.** Claude opens and asks two things:
    - *Where to keep your life admin:* leave it as it is.
    - *Where in the UK do you live?* Type England, Wales, Scotland or Northern Ireland.
@@ -43,14 +41,17 @@ No technical steps, and nothing else to install: Claude Desktop includes everyth
 
 Helping someone set up? Do steps 1 to 5 with them once; after that they just talk to Claude.
 
-## Set up for developers (from a checkout)
+## Set up with Claude Code, Cursor or VS Code
+
+Needs Node.js 18 or newer.
 
 ```bash
-npm install && npm run build
-node dist/index.js init        # creates ~/LifeAdmin and prints the line to connect your assistant
-node dist/index.js doctor      # checks everything, including a live connection test
-node dist/index.js dashboard   # opens the home screen in your browser
+npx -y @nkc27/life-admin-mcp init        # creates ~/LifeAdmin and prints the line to connect your assistant
+npx -y @nkc27/life-admin-mcp doctor      # checks everything, including a live connection test
+npx -y @nkc27/life-admin-mcp dashboard   # opens the home screen in your browser
 ```
+
+For Claude Code: `claude mcp add --scope user life-admin -- npx -y @nkc27/life-admin-mcp`
 
 Also: `due` prints what's coming up, and `ics` writes a calendar file. Set `LIFE_ADMIN_REGION` to `Scotland` or `Northern Ireland` for local bank holidays. `npm run bundle` builds the one-click `life-admin.mcpb` and checks it by installing it the way Claude Desktop does.
 
