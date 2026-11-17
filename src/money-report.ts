@@ -10,18 +10,45 @@ export const NOT_ADVICE =
 /** £100 for whole pounds, £10.99 otherwise. */
 const gbp = (n: number) => formatMoney(n, "GBP").replace(/\.00$/, "");
 
+// Dates are spelled out here rather than with Intl, because Node versions format en-GB dates
+// differently ("Tue, 10 Nov" on older ones, "Tue 10 Nov" on newer), and Claude Desktop ships its own Node.
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+export const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+function parts(date: string): { weekday: number; day: number; month: number; year: string } {
+  const d = new Date(`${date}T00:00:00Z`);
+  return { weekday: d.getUTCDay(), day: d.getUTCDate(), month: d.getUTCMonth(), year: date.slice(0, 4) };
+}
+
 /** "Mon 16 Nov" */
 export function shortDate(date: string): string {
-  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(
-    new Date(`${date}T00:00:00Z`)
-  );
+  const p = parts(date);
+  return `${DAYS[p.weekday]!.slice(0, 3)} ${p.day} ${MONTHS[p.month]!.slice(0, 3)}`;
 }
 
 /** "Wednesday 25 November" */
 export function longDate(date: string): string {
-  return new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(
-    new Date(`${date}T00:00:00Z`)
-  );
+  const p = parts(date);
+  return `${DAYS[p.weekday]} ${p.day} ${MONTHS[p.month]}`;
+}
+
+/** "October 2026" */
+export function monthYear(date: string): string {
+  const p = parts(date);
+  return `${MONTHS[p.month]} ${p.year}`;
 }
 
 function compare(amount: number, usual: number | undefined, partial: boolean): string {
@@ -35,9 +62,7 @@ function compare(amount: number, usual: number | undefined, partial: boolean): s
 
 export function formatSpending(s: SpendingSummary): string {
   const unit = s.kind === "week" ? "week" : "month";
-  const monthName = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }).format(
-    new Date(`${s.range.start}T00:00:00Z`)
-  );
+  const monthName = monthYear(s.range.start);
   const which = s.partial
     ? `This ${unit} so far`
     : s.kind === "month"
@@ -111,11 +136,7 @@ export function formatMoneyAhead(m: MoneyAhead): string {
 
 /** ["2026-10", "2026-09", "2026-08"] -> "August, September and October 2026" */
 export function listMonths(months: string[]): string {
-  const names = [...months]
-    .sort()
-    .map((m) =>
-      new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: "UTC" }).format(new Date(`${m}-01T00:00:00Z`))
-    );
+  const names = [...months].sort().map((m) => MONTHS[Number(m.slice(5, 7)) - 1]!);
   const year = [...months].sort().at(-1)?.slice(0, 4) ?? "";
   const joined = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? "");
   return `${joined} ${year}`.trim();

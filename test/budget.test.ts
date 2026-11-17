@@ -257,3 +257,12 @@ test("the region setting accepts the way people type it", async () => {
   assert.equal(defaultRegion({ LIFE_ADMIN_REGION: "" }), "england-and-wales");
   assert.equal(defaultRegion({}), "england-and-wales");
 });
+
+test("dates read the same on every Node version (no Intl date formatting)", async () => {
+  const { shortDate, longDate, monthYear } = await import("../src/money-report.js");
+  assert.equal(shortDate("2026-11-10"), "Tue 10 Nov");
+  assert.equal(shortDate("2027-01-01"), "Fri 1 Jan");
+  assert.equal(longDate("2026-12-25"), "Friday 25 December");
+  assert.equal(longDate("2028-02-29"), "Tuesday 29 February");
+  assert.equal(monthYear("2026-10-01"), "October 2026");
+});
