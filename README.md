@@ -38,9 +38,10 @@ No technical steps, and nothing else to install: Claude Desktop includes everyth
 3. **Double-click it.** Claude opens and asks two things:
    - *Where to keep your life admin:* leave it as it is.
    - *Where in the UK do you live?* Type England, Wales, Scotland or Northern Ireland.
-4. Click **Install**, then start a new chat and try: *"Show me my home screen."*
+4. Click **Install**. In Claude's **Settings → Extensions**, check that **Life Admin** is switched **on**.
+5. Start a new chat and try: *"Show me my home screen."*
 
-Helping someone set up? Do steps 1 to 4 with them once; after that they just talk to Claude.
+Helping someone set up? Do steps 1 to 5 with them once; after that they just talk to Claude.
 
 ## Set up for developers (from a checkout)
 
