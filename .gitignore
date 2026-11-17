@@ -7,3 +7,5 @@ dist/
 exports/
 *.zip
 demo/.trash/
+build/
+*.mcpb

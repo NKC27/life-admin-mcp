@@ -4,7 +4,7 @@
 
 Your bills, renewals, subscriptions, birthdays and spending, kept as plain files on your own computer, and looked after by your AI assistant (Claude Code, Claude Desktop, Cursor, VS Code or any [MCP](https://modelcontextprotocol.io) client). Made for the UK.
 
-> **Work in progress (0.1.0, not yet published).** Everything below works and is tested (115 tests); one-click install and the companion skill come next.
+> **Work in progress (0.1.0, not yet published).** Everything below works and is tested; publishing comes next.
 
 ![The home screen: what's coming up, next payday, this week's spending and the rainy-day pot](docs/screenshots/home-screen.png)
 
@@ -29,7 +29,20 @@ Ask your assistant things like:
 - *"Put my renewals in my calendar."*
 - *"Show me my home screen."*
 
-## Set up (from a checkout)
+## Install in Claude Desktop (easiest)
+
+No technical steps, and nothing else to install: Claude Desktop includes everything it needs.
+
+1. Install [Claude Desktop](https://claude.ai/download) and sign in.
+2. Download **`life-admin.mcpb`**.
+3. **Double-click it.** Claude opens and asks two things:
+   - *Where to keep your life admin:* leave it as it is.
+   - *Where in the UK do you live?* Type England, Wales, Scotland or Northern Ireland.
+4. Click **Install**, then start a new chat and try: *"Show me my home screen."*
+
+Helping someone set up? Do steps 1 to 4 with them once; after that they just talk to Claude.
+
+## Set up for developers (from a checkout)
 
 ```bash
 npm install && npm run build
@@ -38,7 +51,7 @@ node dist/index.js doctor      # checks everything, including a live connection 
 node dist/index.js dashboard   # opens the home screen in your browser
 ```
 
-Also: `due` prints what's coming up, and `ics` writes a calendar file. Set `LIFE_ADMIN_REGION` to `scotland` or `northern-ireland` for local bank holidays.
+Also: `due` prints what's coming up, and `ics` writes a calendar file. Set `LIFE_ADMIN_REGION` to `Scotland` or `Northern Ireland` for local bank holidays. `npm run bundle` builds the one-click `life-admin.mcpb` and checks it by installing it the way Claude Desktop does.
 
 ## Tools
 

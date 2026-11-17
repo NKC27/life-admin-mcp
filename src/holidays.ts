@@ -39,9 +39,26 @@ export function isRegion(value: unknown): value is Region {
   return typeof value === "string" && (REGIONS as readonly string[]).includes(value);
 }
 
+/**
+ * Read a region the way a person might type it: "Scotland", "northern ireland", "NI", "Wales",
+ * "England" or the exact ids. Anything else gives undefined.
+ */
+export function parseRegion(value: string | undefined): Region | undefined {
+  const v = (value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z]+/g, " ")
+    .trim();
+  if (!v) return undefined;
+  if (v === "scotland") return "scotland";
+  if (v === "northern ireland" || v === "ni") return "northern-ireland";
+  if (["england", "wales", "england and wales", "england wales"].includes(v)) return "england-and-wales";
+  return isRegion(value?.trim()) ? (value!.trim() as Region) : undefined;
+}
+
 /** The region from LIFE_ADMIN_REGION, defaulting to England and Wales. */
 export function defaultRegion(env: NodeJS.ProcessEnv = process.env): Region {
-  return isRegion(env.LIFE_ADMIN_REGION) ? env.LIFE_ADMIN_REGION : "england-and-wales";
+  return parseRegion(env.LIFE_ADMIN_REGION) ?? "england-and-wales";
 }
 
 export function holidays(region: Region): BankHoliday[] {

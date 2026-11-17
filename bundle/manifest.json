@@ -1,0 +1,57 @@
+{
+  "manifest_version": "0.3",
+  "name": "life-admin",
+  "display_name": "Life Admin",
+  "version": "FILLED_IN_BY_BUILD",
+  "description": "Never miss a bill or renewal, see what's safe to spend, and plan a rainy-day pot. Everything stays on your computer.",
+  "long_description": "Life Admin keeps track of the everyday paperwork of life, and your assistant does the remembering.\n\n- **Dates:** bills, renewals, insurance, MOT, council tax, subscriptions, warranties, passports, birthdays and appointments, with reminders in your own calendar.\n- **Money:** import a bank statement to see where your money goes each week, what's due before payday, and how much you could comfortably put aside.\n- **A calm home screen:** large text, plain words, and a Print button.\n- **UK bank holidays** built in.\n\n**Private:** your information is kept as plain files in a folder on this computer. Nothing is sent anywhere.\n\nTry asking: *\"Add my car insurance: £412 a year, renews 3 March.\"* or *\"What's coming up this month?\"* or *\"Show me my home screen.\"*\n\nIt helps with budgeting sums on your own figures; it is not financial advice.",
+  "author": {
+    "name": "NKC27",
+    "url": "https://github.com/NKC27"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NKC27/life-admin-mcp.git"
+  },
+  "homepage": "https://github.com/NKC27/life-admin-mcp",
+  "support": "https://github.com/NKC27/life-admin-mcp/issues",
+  "icon": "icon.png",
+  "screenshots": ["screenshots/home-screen.png"],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {
+        "LIFE_ADMIN_PATH": "${user_config.folder}",
+        "LIFE_ADMIN_REGION": "${user_config.region}"
+      }
+    }
+  },
+  "tools": [],
+  "keywords": ["bills", "renewals", "budget", "reminders", "uk", "household", "life admin", "savings"],
+  "license": "MIT",
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  },
+  "user_config": {
+    "folder": {
+      "type": "directory",
+      "title": "Where to keep your life admin",
+      "description": "A folder on this computer for your bills, dates and spending. It's created for you if it doesn't exist. Most people can leave this as it is.",
+      "default": "${HOME}/LifeAdmin",
+      "required": true
+    },
+    "region": {
+      "type": "string",
+      "title": "Where in the UK do you live?",
+      "description": "Used for bank holidays. Type England, Wales, Scotland or Northern Ireland.",
+      "default": "England",
+      "required": false
+    }
+  }
+}

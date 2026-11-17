@@ -244,3 +244,16 @@ test("rainyDayPlan flags borrowing (but not a mortgage), varying income, big bil
   assert.match(none.flags.join(" "), /don't know your income/);
   assert.match(none.flags.join(" "), /no bank records yet/);
 });
+
+test("the region setting accepts the way people type it", async () => {
+  const { parseRegion, defaultRegion } = await import("../src/holidays.js");
+  assert.equal(parseRegion("Scotland"), "scotland");
+  assert.equal(parseRegion("  northern ireland "), "northern-ireland");
+  assert.equal(parseRegion("NI"), "northern-ireland");
+  assert.equal(parseRegion("Wales"), "england-and-wales");
+  assert.equal(parseRegion("england-and-wales"), "england-and-wales");
+  assert.equal(parseRegion("France"), undefined);
+  assert.equal(defaultRegion({ LIFE_ADMIN_REGION: "Scotland" }), "scotland");
+  assert.equal(defaultRegion({ LIFE_ADMIN_REGION: "" }), "england-and-wales");
+  assert.equal(defaultRegion({}), "england-and-wales");
+});

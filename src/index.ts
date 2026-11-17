@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { runCli } from "./cli.js";
+import { prepareFolder, runCli } from "./cli.js";
 import { resolveFolder } from "./config.js";
 import { log } from "./logger.js";
 import { createServer } from "./server.js";
@@ -16,6 +16,9 @@ async function main(): Promise<void> {
 
   const location = resolveFolder();
   const store = new Store(location.path);
+  // A folder chosen for us (for example by the one-click install) is created on first start, with
+  // its welcome note, so real details never go into the demo folder.
+  if (location.source === "env") await prepareFolder(location.path);
   await store.init();
 
   const server = createServer(store, location);

@@ -16,3 +16,6 @@
 - Birthdays and reminders as item types; paydays (income) kept out of due lists and the calendar.
 - UK bank holidays bundled from gov.uk; paydays on weekends or bank holidays move to the working day before.
 - Home screen (`dashboard` command, `open_home_screen` tool): large text, light and dark, print-friendly, served to this computer only.
+- One-click Claude Desktop installer (`npm run bundle` builds `life-admin.mcpb`): asks where to keep files and where in the UK you live, creates the folder on first start, and is checked by installing it the way Claude Desktop does.
+- The region setting accepts plain names such as "Scotland" or "Northern Ireland".
+- Free companion skill in `skill/life-admin`, with a lint test against the live server and behaviour evals.

@@ -117,6 +117,22 @@ function setupInstructions(folder: string, isDefaultLocation: boolean): string {
   ].join("\n");
 }
 
+/**
+ * Make sure a life-admin folder exists, with its items folder and a short welcome note.
+ * Returns true when it was created now; an existing folder is left untouched.
+ */
+export async function prepareFolder(dir: string): Promise<boolean> {
+  const exists = await fs
+    .stat(path.join(dir, "items"))
+    .then((s) => s.isDirectory())
+    .catch(() => false);
+  if (exists) return false;
+  await fs.mkdir(path.join(dir, "items"), { recursive: true });
+  const readme = path.join(dir, "README.md");
+  if (!(await fs.stat(readme).catch(() => null))) await fs.writeFile(readme, README, "utf-8");
+  return true;
+}
+
 async function init(args: string[]): Promise<number> {
   const dirFlag = args.indexOf("--dir");
   const customDir = dirFlag >= 0 ? args[dirFlag + 1] : undefined;
@@ -127,17 +143,10 @@ async function init(args: string[]): Promise<number> {
   const dir = path.resolve(customDir ?? defaultHomeFolder());
   const isDefault = !customDir || dir === defaultHomeFolder();
 
-  const exists = await fs
-    .stat(path.join(dir, "items"))
-    .then((s) => s.isDirectory())
-    .catch(() => false);
-
-  if (exists) {
-    console.log(`A life-admin folder already exists at ${dir}. Leaving it untouched.\n`);
-  } else {
-    await fs.mkdir(path.join(dir, "items"), { recursive: true });
-    await fs.writeFile(path.join(dir, "README.md"), README, "utf-8");
+  if (await prepareFolder(dir)) {
     console.log(`Created your life-admin folder at ${dir}\n`);
+  } else {
+    console.log(`A life-admin folder already exists at ${dir}. Leaving it untouched.\n`);
   }
 
   console.log(setupInstructions(dir, isDefault));
