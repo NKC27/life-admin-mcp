@@ -2,30 +2,30 @@
 
 **Never miss a bill, never pay a loyalty penalty, and always know what's safe to spend.**
 
-Your bills, renewals, subscriptions, birthdays and spending, kept as plain files on your own computer, and looked after by your AI assistant (Claude Code, Claude Desktop, Cursor, VS Code or any [MCP](https://modelcontextprotocol.io) client). Made for the UK.
+Your bills, renewals, subscriptions, birthdays and spending, kept as plain files on your own computer, and looked after by your AI assistant (Claude Code, Claude Desktop, Cursor, VS Code or any [MCP](https://modelcontextprotocol.io) client). Works in any country, in your own currency, with extra detail for the UK.
 
 ![The home screen: what's coming up, next payday, this week's spending and the rainy-day pot](docs/screenshots/home-screen.png)
 
 ## What it does
 
-- **Remembers the dates.** Renewals, bills, subscriptions, warranties, MOT, passport, birthdays and appointments, with reminders in your own calendar.
-- **Bills before payday.** Lists what goes out before your next pay or pension, and moves payday to the working day before when it falls on a weekend or bank holiday.
-- **Shows where the money goes.** Import a bank statement (every UK bank app can export one) and see this week or month by category, compared with what's usual for you.
+- **Remembers the dates.** Renewals, bills, subscriptions, warranties, vehicle checks, passport, birthdays and appointments, with reminders in your own calendar.
+- **Bills before payday.** Lists what goes out before your next pay or pension, and moves payday to the working day before when it falls on a weekend or public holiday.
+- **Shows where the money goes.** Import a bank statement (most bank apps can export one as a CSV file, in English or other common layouts) and see this week or month by category, compared with what's usual for you.
 - **Rainy-day planner.** Spreads big yearly bills into monthly amounts, then suggests Gentle, Steady or Stretch saving amounts, each checked against your tightest recent month.
 - **Spots price rises.** Records the old and new price at every renewal, so loyalty penalties are visible.
 - **A calm home screen.** Large text, plain words, light and dark colours, and a Print button for the fridge.
-- **UK bank holidays** for England and Wales, Scotland and Northern Ireland, built in.
+- **Your country.** Your currency, how dates are written, and public holidays for about 200 countries and their regions, built in. The UK uses the official gov.uk dates.
 
 ## Try it
 
 Ask your assistant things like:
 
-- *"Add my car insurance: £412 a year, renews 3 March."*
-- *"What's coming up this month?"*
-- *"Import my bank statement from Downloads."*
-- *"How much could I put aside for a rainy day?"*
-- *"Put my renewals in my calendar."*
-- *"Show me my home screen."*
+- _"Add my car insurance: £412 a year, renews 3 March."_
+- _"What's coming up this month?"_
+- _"Import my bank statement from Downloads."_
+- _"How much could I put aside for a rainy day?"_
+- _"Put my renewals in my calendar."_
+- _"Show me my home screen."_
 
 ## Install in Claude Desktop (easiest)
 
@@ -33,11 +33,12 @@ No technical steps, and nothing else to install: Claude Desktop includes everyth
 
 1. Install [Claude Desktop](https://claude.ai/download) and sign in.
 2. Download **`life-admin.mcpb`** from the [latest release](https://github.com/NKC27/life-admin-mcp/releases/latest).
-3. **Double-click it.** Claude opens and asks two things:
-   - *Where to keep your life admin:* leave it as it is.
-   - *Where in the UK do you live?* Type England, Wales, Scotland or Northern Ireland.
+3. **Double-click it.** Claude opens and asks a few things:
+   - _Where to keep your life admin:_ leave it as it is.
+   - _Which country do you live in?_ Type its name, for example United Kingdom, Ireland, United States or Australia.
+   - _State or region_ and _Currency_ are optional. Add a region if holidays differ where you live (Scotland, Northern Ireland, California, Ontario...).
 4. Click **Install**. In Claude's **Settings → Extensions**, check that **Life Admin** is switched **on**.
-5. Start a new chat and try: *"Show me my home screen."*
+5. Start a new chat and try: _"Show me my home screen."_
 
 Helping someone set up? Do steps 1 to 5 with them once; after that they just talk to Claude.
 
@@ -53,21 +54,21 @@ npx -y @nkc27/life-admin-mcp dashboard   # opens the home screen in your browser
 
 For Claude Code: `claude mcp add --scope user life-admin -- npx -y @nkc27/life-admin-mcp`
 
-Also: `due` prints what's coming up, and `ics` writes a calendar file. Set `LIFE_ADMIN_REGION` to `Scotland` or `Northern Ireland` for local bank holidays. `npm run bundle` builds the one-click `life-admin.mcpb` and checks it by installing it the way Claude Desktop does.
+Also: `due` prints what's coming up, and `ics` writes a calendar file. Set `LIFE_ADMIN_COUNTRY` (e.g. `Ireland`), and optionally `LIFE_ADMIN_REGION` (e.g. `Scotland`, `California`) and `LIFE_ADMIN_CURRENCY` (e.g. `EUR`); with none set it uses the UK and pounds. `npm run bundle` builds the one-click `life-admin.mcpb` and checks it by installing it the way Claude Desktop does.
 
 ## Tools
 
-| Area | Tools |
-| --- | --- |
-| Dates and renewals | `due_soon`, `add_item`, `get_item`, `update_item`, `mark_handled`, `search_items`, `list_items`, `delete_item`, `restore_item` |
-| Money | `import_bank_file`, `add_spending`, `categorise`, `spending_summary`, `money_ahead`, `rainy_day_plan`, `update_pot` |
-| Calendar and screen | `export_calendar`, `bank_holidays`, `open_home_screen`, `get_stats` |
+| Area                | Tools                                                                                                                          |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Dates and renewals  | `due_soon`, `add_item`, `get_item`, `update_item`, `mark_handled`, `search_items`, `list_items`, `delete_item`, `restore_item` |
+| Money               | `import_bank_file`, `add_spending`, `categorise`, `spending_summary`, `money_ahead`, `rainy_day_plan`, `update_pot`            |
+| Calendar and screen | `export_calendar`, `bank_holidays`, `open_home_screen`, `get_stats`                                                            |
 
 Item types: bill, renewal, subscription, policy, warranty, vehicle, document, income, birthday and reminder.
 
 ## Agent skill
 
-Tools are only half of it: an assistant also needs to know *how* to use them well. [`skill/life-admin/`](skill/life-admin) is a free `SKILL.md` that teaches it to never invent dates or prices, keep card numbers out, ask before importing or deleting, never promise a reminder it can't send, and treat pushy "pay now" emails as possible scams. Copy the folder into your assistant's skills directory, or build a zip with `npm run package-skill`.
+Tools are only half of it: an assistant also needs to know _how_ to use them well. [`skill/life-admin/`](skill/life-admin) is a free `SKILL.md` that teaches it to never invent dates or prices, keep card numbers out, ask before importing or deleting, never promise a reminder it can't send, and treat pushy "pay now" emails as possible scams. Copy the folder into your assistant's skills directory, or build a zip with `npm run package-skill`.
 
 A test checks the skill against the live server, so every tool and argument it names really exists. `npm run eval:skill` runs behaviour scenarios in real Claude sessions (needs the `claude` CLI signed in).
 
@@ -89,7 +90,9 @@ npm run format   # prettier
 
 `LIFE_ADMIN_TODAY=YYYY-MM-DD` pretends it's another day (for tests and demos). `npx tsx scripts/make-demo-money.ts` rebuilds the fictional demo spending.
 
-Bank holiday dates come from [gov.uk](https://www.gov.uk/bank-holidays): contains public sector information licensed under the Open Government Licence v3.0.
+UK bank holiday dates come from [gov.uk](https://www.gov.uk/bank-holidays): contains public sector information licensed under the Open Government Licence v3.0.
+
+Other public holidays come from [date-holidays](https://github.com/commenthol/date-holidays) by commenthol and contributors (code ISC; holiday data CC BY-SA, see [their licence](https://github.com/commenthol/date-holidays/blob/master/LICENSE)). They are worked out on your computer; local or one-off holidays may be missing.
 
 ## Licence
 

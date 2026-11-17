@@ -2,8 +2,27 @@
 // Numbers, so writing also guards against spreadsheet formula injection: bank descriptions come from
 // outside, and a cell starting with = + - @ would otherwise run as a formula when the file is opened.
 
+/**
+ * The field separator a file uses: comma, semicolon (common in Europe, where the comma is the decimal
+ * mark) or tab. Counted outside quotes over the first lines.
+ */
+export function detectDelimiter(text: string): string {
+  const counts: Record<string, number> = { ",": 0, ";": 0, "\t": 0 };
+  let inQuotes = false;
+  let lines = 0;
+  for (let i = 0; i < text.length && lines < 30; i++) {
+    const c = text[i]!;
+    if (c === '"') inQuotes = !inQuotes;
+    else if (inQuotes) continue;
+    else if (c === "\n") lines++;
+    else if (c in counts) counts[c]!++;
+  }
+  const [best, count] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]!;
+  return count > 0 ? best : ",";
+}
+
 /** Parse CSV text into rows of fields. Handles quotes, escaped quotes, CRLF and a UTF-8 BOM. */
-export function parseCsv(text: string): string[][] {
+export function parseCsv(text: string, delimiter = ","): string[][] {
   if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
   const rows: string[][] = [];
   let row: string[] = [];
@@ -24,7 +43,7 @@ export function parseCsv(text: string): string[][] {
       }
     } else if (c === '"') {
       inQuotes = true;
-    } else if (c === ",") {
+    } else if (c === delimiter) {
       row.push(field);
       field = "";
     } else if (c === "\n") {

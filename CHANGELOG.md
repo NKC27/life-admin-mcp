@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.0 (2026-11-17)
+
+- Works in any country. New settings: country, optional state or region, and optional currency (`LIFE_ADMIN_COUNTRY`, `LIFE_ADMIN_REGION`, `LIFE_ADMIN_CURRENCY`), asked for by the one-click installer. With nothing set it behaves exactly as before: the UK (England and Wales) and pounds; a region on its own still means the UK.
+- Public holidays for about 200 countries and their regions from the open date-holidays data, worked out on the computer. The UK keeps the official gov.uk dates, with date-holidays after 2028.
+- `bank_holidays` takes `place` (e.g. "Ireland", "United States, California", "AU-NSW") instead of `region`.
+- Money is shown in the person's currency and their country's English style; paydays move for that country's holidays and weekends (Friday and Saturday where that's the weekend).
+- Bank statements from other countries: comma, semicolon or tab separated; decimal commas ("1.234,56"); month-first dates worked out from the file (falling back to the country's usual order); common German, French, Spanish, Dutch and Italian column names; more shop names from outside the UK.
+- Free-help wording is country-aware: UK services are named for UK users, and others get a neutral pointer to their country's free guidance and debt advice.
+- `doctor` and `get_stats` show the country and currency, and warn about settings they don't recognise.
+- The free skill no longer gives UK rules to people elsewhere.
+
 ## 1.0.0 (2026-11-17)
 
 - First public release. Typed life-admin items stored as markdown in `~/LifeAdmin/items`.

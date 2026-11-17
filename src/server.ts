@@ -12,7 +12,8 @@ import { VERSION } from "./version.js";
 import { MoneyStore } from "./money.js";
 import { registerMoneyTools } from "./money-tools.js";
 import { openInBrowser, startDashboard, type RunningDashboard } from "./dashboard.js";
-import { defaultRegion, REGION_NAMES, upcomingHolidays } from "./holidays.js";
+import { holidayWord, upcomingHolidays } from "./holidays.js";
+import { settings } from "./locale.js";
 
 const INSTRUCTIONS =
   "Local-first life admin: renewals, bills, subscriptions, warranties, policies, vehicles and documents, each " +
@@ -45,7 +46,7 @@ const FIELD_SCHEMA = {
     .min(0)
     .optional()
     .describe("Cost per period as the user stated it (for income: the amount received). Never estimate."),
-  currency: z.string().length(3).optional().describe("Three-letter code, default GBP"),
+  currency: z.string().length(3).optional().describe("Three-letter code, default the person's own currency"),
   period: z.enum(PERIODS).optional().describe("How often it repeats (default one-off)"),
   due: z
     .string()
@@ -115,7 +116,12 @@ export function createServer(store: Store, location: FolderLocation): McpServer 
     async () => {
       const items = await store.loadAll();
       const todayDate = today();
-      const lines = [`Folder: ${store.root} (${describeSource(location.source)})`, `Items: ${items.length}`];
+      const where = settings();
+      const lines = [
+        `Folder: ${store.root} (${describeSource(location.source)})`,
+        `Country: ${where.label} · currency ${where.currency}`,
+        `Items: ${items.length}`,
+      ];
       for (const type of ITEM_TYPES) {
         const count = items.filter((i) => i.type === type).length;
         if (count) lines.push(`  ${type}: ${count}`);
@@ -226,10 +232,10 @@ export function createServer(store: Store, location: FolderLocation): McpServer 
     },
     async ({ days, type }) => {
       const window = days ?? 30;
-      const region = defaultRegion();
+      const region = settings().place;
       const holidays = upcomingHolidays(today(), window, region);
       const note = holidays.length
-        ? `\n\nBank holidays in this period (${REGION_NAMES[region]}): ${holidays.map((h) => `${h.title} ${h.date}`).join(", ")}.`
+        ? `\n\n${holidayWord(region).replace(/^./, (c) => c.toUpperCase())} in this period (${settings().label}): ${holidays.map((h) => `${h.title} ${h.date}`).join(", ")}.`
         : "";
       return textResult(dueReport(await store.loadAll(), today(), window, type) + note);
     }

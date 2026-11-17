@@ -13,9 +13,18 @@ import {
   spendingSummary,
   startOfWeek,
 } from "../src/budget.js";
-import { workingDayOnOrBefore, isWorkingDay, upcomingHolidays, coverageEnd } from "../src/holidays.js";
+import {
+  workingDayOnOrBefore,
+  isWorkingDay,
+  upcomingHolidays,
+  govCoverageEnd,
+  holidaysBetween,
+} from "../src/holidays.js";
+
+const EW = { country: "GB", region: "ENG" };
+const SCT = { country: "GB", region: "SCT" };
 import { workingDayFor } from "../src/money-tools.js";
-import { formatMoneyAhead, formatRainyDay, formatSpending, listMonths, NOT_ADVICE } from "../src/money-report.js";
+import { formatMoneyAhead, formatRainyDay, formatSpending, listMonths, notAdvice } from "../src/money-report.js";
 import type { Category, Transaction } from "../src/money.js";
 import type { Item } from "../src/types.js";
 
@@ -125,7 +134,7 @@ test("moneyAhead: bills before payday, with Christmas Day pay arriving the day b
     item({ title: "Passport", type: "document", due: "2026-12-01", period: "one-off" }),
   ];
   // On 1 December the next payday is 25 December 2026, a Friday and Christmas Day.
-  const m = moneyAhead(items, "2026-12-01", { balance: 500, workingDay: workingDayFor("england-and-wales") });
+  const m = moneyAhead(items, "2026-12-01", { balance: 500, workingDay: workingDayFor(EW) });
   assert.equal(m.payday!.date, "2026-12-24");
   assert.equal(m.payday!.scheduled, "2026-12-25");
   assert.equal(m.payday!.movedBecause, "Christmas Day");
@@ -163,17 +172,17 @@ test("moneyAhead warns plainly when the bills come to more than the balance", ()
 });
 
 test("bank holidays: official dates, weekends and paydays", () => {
-  assert.ok(!isWorkingDay("2026-12-25", "england-and-wales"));
-  assert.ok(!isWorkingDay("2026-12-28", "england-and-wales"), "Boxing Day substitute (26th is a Saturday)");
-  assert.ok(isWorkingDay("2026-11-30", "england-and-wales"));
-  assert.ok(!isWorkingDay("2026-11-30", "scotland"), "St Andrew's Day");
-  assert.equal(workingDayOnOrBefore("2026-10-25", "england-and-wales"), "2026-10-23", "Sunday -> Friday");
-  assert.equal(workingDayOnOrBefore("2026-12-28", "england-and-wales"), "2026-12-24");
+  assert.ok(!isWorkingDay("2026-12-25", EW));
+  assert.ok(!isWorkingDay("2026-12-28", EW), "Boxing Day substitute (26th is a Saturday)");
+  assert.ok(isWorkingDay("2026-11-30", EW));
+  assert.ok(!isWorkingDay("2026-11-30", SCT), "St Andrew's Day");
+  assert.equal(workingDayOnOrBefore("2026-10-25", EW), "2026-10-23", "Sunday -> Friday");
+  assert.equal(workingDayOnOrBefore("2026-12-28", EW), "2026-12-24");
   assert.deepEqual(
-    upcomingHolidays("2026-12-01", 40, "england-and-wales").map((h) => h.date),
+    upcomingHolidays("2026-12-01", 40, EW).map((h) => h.date),
     ["2026-12-25", "2026-12-28", "2027-01-01"]
   );
-  assert.ok(coverageEnd("england-and-wales") >= "2028-12-31");
+  assert.ok(govCoverageEnd() >= "2028-12-31");
 });
 
 test("fullMonths only counts months the records fully cover", () => {
@@ -211,7 +220,7 @@ test("rainyDayPlan: options, risk checks, set-asides and goals from steady figur
   assert.match(text, /Car insurance: £360 yearly → £30 a month/);
   assert.match(text, /Steady: £235 a month \(about £54 a week\) · £1,000 pot in 4 month\(s\)/);
   assert.match(text, /average of August, September and October 2026/);
-  assert.ok(text.endsWith(NOT_ADVICE));
+  assert.ok(text.endsWith(notAdvice()));
 });
 
 test("rainyDayPlan never suggests saving when more goes out than comes in", () => {
@@ -245,17 +254,65 @@ test("rainyDayPlan flags borrowing (but not a mortgage), varying income, big bil
   assert.match(none.flags.join(" "), /no bank records yet/);
 });
 
-test("the region setting accepts the way people type it", async () => {
-  const { parseRegion, defaultRegion } = await import("../src/holidays.js");
-  assert.equal(parseRegion("Scotland"), "scotland");
-  assert.equal(parseRegion("  northern ireland "), "northern-ireland");
-  assert.equal(parseRegion("NI"), "northern-ireland");
-  assert.equal(parseRegion("Wales"), "england-and-wales");
-  assert.equal(parseRegion("england-and-wales"), "england-and-wales");
-  assert.equal(parseRegion("France"), undefined);
-  assert.equal(defaultRegion({ LIFE_ADMIN_REGION: "Scotland" }), "scotland");
-  assert.equal(defaultRegion({ LIFE_ADMIN_REGION: "" }), "england-and-wales");
-  assert.equal(defaultRegion({}), "england-and-wales");
+test("country and region settings accept the way people type them", async () => {
+  const { parseCountry, parseRegion, settings } = await import("../src/locale.js");
+  assert.equal(parseCountry("United Kingdom"), "GB");
+  assert.equal(parseCountry("uk"), "GB");
+  assert.equal(parseCountry("Scotland"), "GB");
+  assert.equal(parseCountry("USA"), "US");
+  assert.equal(parseCountry("ireland"), "IE");
+  assert.equal(parseCountry("Deutschland"), undefined);
+  assert.equal(parseCountry("Germany"), "DE");
+  assert.equal(parseCountry("au"), "AU");
+  assert.equal(parseRegion("GB", "Scotland"), "SCT");
+  assert.equal(parseRegion("GB", "  northern ireland "), "NIR");
+  assert.equal(parseRegion("GB", "NI"), "NIR");
+  assert.equal(parseRegion("GB", "england and wales"), "ENG");
+  assert.equal(parseRegion("US", "California"), "CA");
+  assert.equal(parseRegion("US", "US-NY"), "NY");
+  assert.equal(parseRegion("AU", "New South Wales"), "NSW");
+  assert.equal(parseRegion("GB", "France"), undefined);
+
+  // Before 1.1 only a UK region could be set; that still works.
+  const old = settings({ LIFE_ADMIN_REGION: "Scotland" });
+  assert.deepEqual([old.place.country, old.place.region, old.currency, old.label], ["GB", "SCT", "GBP", "Scotland"]);
+  const none = settings({});
+  assert.deepEqual(
+    [none.place.country, none.currency, none.dateOrder, none.label],
+    ["GB", "GBP", "DMY", "England and Wales"]
+  );
+  const us = settings({ LIFE_ADMIN_COUNTRY: "United States", LIFE_ADMIN_REGION: "California" });
+  assert.deepEqual([us.currency, us.dateOrder, us.label], ["USD", "MDY", "California, United States"]);
+  const ie = settings({ LIFE_ADMIN_COUNTRY: "Ireland" });
+  assert.deepEqual([ie.currency, ie.dateOrder, ie.label], ["EUR", "DMY", "Ireland"]);
+  const override = settings({ LIFE_ADMIN_COUNTRY: "Spain", LIFE_ADMIN_CURRENCY: "gbp" });
+  assert.equal(override.currency, "GBP");
+  const bad = settings({ LIFE_ADMIN_COUNTRY: "Narnia" });
+  assert.equal(bad.place.country, "GB");
+  assert.match(bad.unrecognised.join(), /Narnia/);
+});
+
+test("public holidays outside the UK come from the worldwide data", () => {
+  const us = holidaysBetween({ country: "US" }, "2026-01-01", "2026-12-31").map((h) => h.date);
+  assert.ok(us.includes("2026-07-03"), "Independence Day (4 July is a Saturday) observed on Friday 3rd");
+  assert.ok(us.includes("2026-11-26"), "Thanksgiving");
+  assert.ok(!us.includes("2026-12-26"), "no Boxing Day in the US");
+  const ie = holidaysBetween({ country: "IE" }, "2026-03-01", "2026-03-31").map((h) => h.date);
+  assert.ok(ie.includes("2026-03-17"), "St Patrick's Day");
+  assert.ok(!isWorkingDay("2026-07-03", { country: "US" }));
+  assert.ok(isWorkingDay("2026-11-30", { country: "US" }));
+  assert.equal(workingDayOnOrBefore("2026-03-17", { country: "IE" }), "2026-03-16");
+  // UK dates past the bundled gov.uk list still come out
+  assert.ok(!isWorkingDay("2030-12-25", EW));
+});
+
+test("money is shown in the person's currency and style", async () => {
+  const { formatMoney, money } = await import("../src/util.js");
+  assert.equal(money(100, "GBP", "GB"), "£100");
+  assert.equal(money(10.5, "GBP", "GB"), "£10.50");
+  assert.equal(money(1234, "USD", "US"), "$1,234");
+  assert.match(money(12.5, "EUR", "IE"), /^€12\.50$/);
+  assert.equal(formatMoney(5, "GBP", "GB"), "£5.00");
 });
 
 test("dates read the same on every Node version (no Intl date formatting)", async () => {

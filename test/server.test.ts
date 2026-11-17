@@ -371,10 +371,16 @@ test("update_pot adds, tracks the goal and refuses to go below zero", async () =
 });
 
 test("bank_holidays lists the official dates for a region", async () => {
-  const scotland = await call("bank_holidays", { region: "scotland", days: 30 });
+  const scotland = await call("bank_holidays", { place: "Scotland", days: 30 });
   assert.match(scotland.text, /Bank holidays in Scotland/);
   assert.match(scotland.text, /St Andrew/);
-  assert.match(scotland.text, /runs to the end of 2028 \(source: gov\.uk\)/);
+  assert.match(scotland.text, /Source: gov\.uk/);
+  const us = await call("bank_holidays", { place: "United States", days: 30 });
+  assert.match(us.text, /Public holidays in United States/);
+  assert.match(us.text, /Thanksgiving/);
+  assert.match(us.text, /date-holidays/);
+  const unknown = await call("bank_holidays", { place: "Narnia" });
+  assert.equal(unknown.isError, true);
 });
 
 test("open_home_screen starts the home screen on this computer only", async () => {

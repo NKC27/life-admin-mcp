@@ -1,5 +1,5 @@
 // Unpacks life-admin.mcpb and starts it the way Claude Desktop does, then uses it like a new user:
-// a folder that doesn't exist yet, the region typed in plain words, and the home screen opened.
+// a folder that doesn't exist yet, the country and region typed in plain words, and the home screen opened.
 //   node scripts/check-bundle.mjs   (run automatically by `npm run bundle`)
 import { execFileSync } from "node:child_process";
 import assert from "node:assert/strict";
@@ -24,7 +24,7 @@ execFileSync(
 // What Claude Desktop does with the manifest: substitute ${__dirname} and the user's settings.
 const manifest = JSON.parse(await fs.readFile(path.join(unpacked, "manifest.json"), "utf-8"));
 const folder = path.join(work, "home", "LifeAdmin"); // does not exist yet, like a first install
-const settings = { folder, region: "Scotland" };
+const settings = { folder, country: "United Kingdom", region: "Scotland", currency: "" };
 const fill = (s) =>
   s.replaceAll("${__dirname}", unpacked).replace(/\$\{user_config\.(\w+)\}/g, (_, k) => String(settings[k] ?? ""));
 const cfg = manifest.server.mcp_config;
@@ -55,7 +55,9 @@ try {
   const { tools } = await client.listTools();
   assert.equal(tools.length, manifest.tools.length, "manifest lists every tool");
 
-  assert.match(await call("get_stats"), /set by LIFE_ADMIN_PATH/);
+  const stats = await call("get_stats");
+  assert.match(stats, /set by LIFE_ADMIN_PATH/);
+  assert.match(stats, /Country: Scotland · currency GBP/, "country and region from the installer");
   await fs.access(path.join(folder, "items"));
   assert.match(await fs.readFile(path.join(folder, "README.md"), "utf-8"), /Life Admin/, "welcome note written");
 

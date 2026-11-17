@@ -6,16 +6,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { moneyAhead, rainyDayPlan, spendingSummary } from "./budget.js";
 import { today } from "./dates.js";
-import {
-  defaultRegion,
-  nonWorkingReason,
-  REGION_NAMES,
-  REGIONS,
-  coverageEnd,
-  upcomingHolidays,
-  workingDayOnOrBefore,
-  type Region,
-} from "./holidays.js";
+import { govCoverageEnd, holidayWord, nonWorkingReason, upcomingHolidays, workingDayOnOrBefore } from "./holidays.js";
+import { parseCountry, parseRegion, placeLabel, settings, type Place } from "./locale.js";
 import {
   CATEGORIES,
   CATEGORY_IDS,
@@ -30,22 +22,22 @@ import {
 } from "./money.js";
 import { formatMoneyAhead, formatRainyDay, formatSpending, longDate, shortDate } from "./money-report.js";
 import type { Store } from "./store.js";
-import { formatMoney, isIsoDate, maskCardNumbers } from "./util.js";
+import { isIsoDate, maskCardNumbers, money } from "./util.js";
 
 const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
-/** £100 for whole pounds, £10.99 otherwise. */
-const gbp = (n: number) => formatMoney(n, "GBP").replace(/\.00$/, "");
+/** £100 for whole amounts, £10.99 otherwise, in the person's currency. */
+const gbp = (n: number) => money(n);
 
 function textResult(text: string, isError = false) {
   return { isError, content: [{ type: "text" as const, text }] };
 }
 
-/** Working-day lookup for paydays in the given region. */
-export function workingDayFor(region: Region) {
-  return (date: string) => ({ date: workingDayOnOrBefore(date, region), reason: nonWorkingReason(date, region) });
+/** Working-day lookup for paydays in the given place. */
+export function workingDayFor(place: Place) {
+  return (date: string) => ({ date: workingDayOnOrBefore(date, place), reason: nonWorkingReason(date, place) });
 }
 
 function categoryList(): string {
@@ -60,7 +52,7 @@ export function registerMoneyTools(server: McpServer, store: Store, money: Money
     {
       title: "Import bank statement",
       description:
-        "Read a bank statement exported as CSV (every UK bank app can export one) and add its transactions to the " +
+        "Read a bank statement exported as CSV (most bank apps and websites can export one) and add its transactions to the " +
         "person's spending records, sorted into categories. Always run first with confirm false to show a " +
         "preview, then again with confirm true once the person agrees. Already-imported lines are skipped, so " +
         "overlapping statements are safe. The file stays on this computer.",
@@ -85,7 +77,7 @@ export function registerMoneyTools(server: McpServer, store: Store, money: Money
 
       let parsed;
       try {
-        parsed = parseBankCsv(text, await money.loadRules());
+        parsed = parseBankCsv(text, await money.loadRules(), settings().dateOrder);
       } catch (err) {
         return textResult(err instanceof Error ? err.message : String(err), true);
       }
@@ -143,7 +135,7 @@ export function registerMoneyTools(server: McpServer, store: Store, money: Money
     {
       title: "Add spending",
       description:
-        'Record one payment or refund the person tells you about ("I spent £42 on a meal out"). The category is ' +
+        'Record one payment or refund the person tells you about ("I spent 42 on a meal out"). The category is ' +
         "worked out from the description unless given. Amounts are always positive; set money_in for refunds or " +
         `money received. Categories: ${categoryList()}.`,
       inputSchema: {
@@ -238,7 +230,7 @@ export function registerMoneyTools(server: McpServer, store: Store, money: Money
       title: "Money ahead",
       description:
         "Payments due between today and the next payday (from income items, moved to the working day before if " +
-        "payday falls on a weekend or bank holiday), with their total. Given the person's current balance, says " +
+        "payday falls on a weekend or public holiday), with their total. Given the person's current balance, says " +
         "roughly what is left until payday. Never guess the balance: ask for it.",
       inputSchema: {
         balance: z.number().optional().describe("Current bank balance the person gave you"),
@@ -249,7 +241,7 @@ export function registerMoneyTools(server: McpServer, store: Store, money: Money
     async ({ balance, days }) =>
       textResult(
         formatMoneyAhead(
-          moneyAhead(await store.loadAll(), today(), { balance, days, workingDay: workingDayFor(defaultRegion()) })
+          moneyAhead(await store.loadAll(), today(), { balance, days, workingDay: workingDayFor(settings().place) })
         )
       )
   );
@@ -261,7 +253,7 @@ export function registerMoneyTools(server: McpServer, store: Store, money: Money
       description:
         "Work out how much the person could put aside, from their own income items and spending records: big " +
         "yearly bills smoothed into monthly set-asides, then Gentle, Steady and Stretch options, each with a risk " +
-        "check against their tightest recent month and time to a £1,000 pot and to three months of essentials. " +
+        "check against their tightest recent month and time to a 1,000 starter pot and to three months of essentials. " +
         "Flags varying income, rising spending, big bills due soon and signs of borrowing. Arithmetic only: never " +
         "recommend financial products, accounts or investments.",
       inputSchema: {},
@@ -306,28 +298,59 @@ export function registerMoneyTools(server: McpServer, store: Store, money: Money
   server.registerTool(
     "bank_holidays",
     {
-      title: "Bank holidays",
+      title: "Public holidays",
       description:
-        "Upcoming UK bank holidays (official gov.uk list, bundled) for England and Wales, Scotland or Northern " +
-        "Ireland. Useful because pay due on a bank holiday or weekend usually arrives the working day before, and " +
-        "payments due then are usually taken the next working day.",
+        "Upcoming public and bank holidays for the person's country and region (set at install), worked out on " +
+        "this computer. The UK uses the official gov.uk list; other countries use the open date-holidays data. " +
+        "Useful because pay due on a holiday or weekend usually arrives the working day before, and payments due " +
+        "then are usually taken the next working day. Pass place to look at somewhere else.",
       inputSchema: {
         days: z.number().int().min(1).max(800).optional().describe("How far ahead (default 120 days)"),
-        region: z.enum(REGIONS).optional().describe("Default: england-and-wales, or LIFE_ADMIN_REGION"),
+        place: z
+          .string()
+          .max(80)
+          .optional()
+          .describe("Another country or region, e.g. 'Scotland', 'Ireland', 'United States, California', 'AU-NSW'"),
       },
       annotations: READ_ONLY,
     },
-    async ({ days, region }) => {
-      const where = region ?? defaultRegion();
+    async ({ days, place }) => {
+      let where: Place = settings().place;
+      if (place) {
+        const [countryPart, regionPart] = place.includes(",")
+          ? (place.split(",").map((x) => x.trim()) as [string, string])
+          : place.includes("-") && /^[A-Za-z]{2}-/.test(place.trim())
+            ? (place.trim().split("-") as [string, string])
+            : [place.trim(), ""];
+        let country = parseCountry(countryPart);
+        let region = country ? parseRegion(country, regionPart) : undefined;
+        // "Scotland" or "California" on its own: a UK nation, or a region of the person's own country.
+        if (!country || (country === "GB" && !regionPart && parseRegion("GB", countryPart))) {
+          const home = settings().place.country;
+          const asRegion = parseRegion(country ?? home, countryPart);
+          if (asRegion) {
+            country = country ?? home;
+            region = asRegion;
+          }
+        }
+        if (!country) return textResult(`I don't recognise "${place}" as a country or region.`, true);
+        where = { country, region };
+      }
       const from = today();
       const list = upcomingHolidays(from, days ?? 120, where);
-      const lines = [`Bank holidays in ${REGION_NAMES[where]} from ${longDate(from)}:`];
+      const word = holidayWord(where);
+      const lines = [`${word.charAt(0).toUpperCase()}${word.slice(1)} in ${placeLabel(where)} from ${longDate(from)}:`];
       lines.push(
         ...(list.length
           ? list.map((h) => `- ${longDate(h.date)} ${h.date.slice(0, 4)}: ${h.title}`)
           : ["- None in that period."])
       );
-      lines.push("", `The bundled list runs to the end of ${coverageEnd(where).slice(0, 4)} (source: gov.uk).`);
+      lines.push(
+        "",
+        where.country === "GB"
+          ? `Source: gov.uk (bundled to the end of ${govCoverageEnd().slice(0, 4)}), then date-holidays.`
+          : "Source: the open date-holidays data, worked out on this computer. Local or one-off holidays may be missing."
+      );
       return textResult(lines.join("\n"));
     }
   );

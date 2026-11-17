@@ -3,8 +3,8 @@
   "name": "life-admin",
   "display_name": "Life Admin",
   "version": "FILLED_IN_BY_BUILD",
-  "description": "Never miss a bill or renewal, see what's safe to spend, and plan a rainy-day pot. Everything stays on your computer.",
-  "long_description": "Life Admin keeps track of the everyday paperwork of life, and your assistant does the remembering.\n\n- **Dates:** bills, renewals, insurance, MOT, council tax, subscriptions, warranties, passports, birthdays and appointments, with reminders in your own calendar.\n- **Money:** import a bank statement to see where your money goes each week, what's due before payday, and how much you could comfortably put aside.\n- **A calm home screen:** large text, plain words, and a Print button.\n- **UK bank holidays** built in.\n\n**Private:** your information is kept as plain files in a folder on this computer. Nothing is sent anywhere.\n\nTry asking: *\"Add my car insurance: £412 a year, renews 3 March.\"* or *\"What's coming up this month?\"* or *\"Show me my home screen.\"*\n\nIt helps with budgeting sums on your own figures; it is not financial advice.",
+  "description": "Never miss a bill or renewal, see what's safe to spend, and plan a rainy-day pot. Works in any country; everything stays on your computer.",
+  "long_description": "Life Admin keeps track of the everyday paperwork of life, and your assistant does the remembering.\n\n- **Dates:** bills, renewals, insurance, vehicle checks, taxes, subscriptions, warranties, passports, birthdays and appointments, with reminders in your own calendar.\n- **Money:** import a bank statement to see where your money goes each week, what's due before payday, and how much you could comfortably put aside.\n- **A calm home screen:** large text, plain words, and a Print button.\n- **Your country:** your own currency, and public holidays for about 200 countries built in (official gov.uk dates for the UK).\n\n**Private:** your information is kept as plain files in a folder on this computer. Nothing is sent anywhere.\n\nTry asking: *\"Add my car insurance: 412 a year, renews 3 March.\"* or *\"What's coming up this month?\"* or *\"Show me my home screen.\"*\n\nIt helps with budgeting sums on your own figures; it is not financial advice.",
   "author": {
     "name": "NKC27",
     "url": "https://github.com/NKC27"
@@ -25,12 +25,14 @@
       "args": ["${__dirname}/dist/index.js"],
       "env": {
         "LIFE_ADMIN_PATH": "${user_config.folder}",
-        "LIFE_ADMIN_REGION": "${user_config.region}"
+        "LIFE_ADMIN_COUNTRY": "${user_config.country}",
+        "LIFE_ADMIN_REGION": "${user_config.region}",
+        "LIFE_ADMIN_CURRENCY": "${user_config.currency}"
       }
     }
   },
   "tools": [],
-  "keywords": ["bills", "renewals", "budget", "reminders", "uk", "household", "life admin", "savings"],
+  "keywords": ["bills", "renewals", "budget", "reminders", "household", "life admin", "savings", "public holidays"],
   "license": "MIT",
   "compatibility": {
     "platforms": ["darwin", "win32", "linux"],
@@ -46,11 +48,25 @@
       "default": "${HOME}/LifeAdmin",
       "required": true
     },
+    "country": {
+      "type": "string",
+      "title": "Which country do you live in?",
+      "description": "Used for your currency, public holidays and how dates are written. Type its name in English, for example United Kingdom, Ireland, United States, Canada or Australia.",
+      "default": "United Kingdom",
+      "required": true
+    },
     "region": {
       "type": "string",
-      "title": "Where in the UK do you live?",
-      "description": "Used for bank holidays. Type England, Wales, Scotland or Northern Ireland.",
-      "default": "England",
+      "title": "State or region (optional)",
+      "description": "Some holidays differ by region. For example Scotland or Northern Ireland, California, Ontario or New South Wales. Leave blank if you're not sure.",
+      "default": "",
+      "required": false
+    },
+    "currency": {
+      "type": "string",
+      "title": "Currency (optional)",
+      "description": "Leave blank to use your country's currency. Or type a three-letter code such as GBP, EUR or USD.",
+      "default": "",
       "required": false
     }
   }

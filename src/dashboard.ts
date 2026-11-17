@@ -6,14 +6,15 @@ import { fileURLToPath } from "node:url";
 
 import { moneyAhead, rainyDayPlan, spendingSummary, type PlanOption } from "./budget.js";
 import { describeDays, dueStatus, today } from "./dates.js";
-import { defaultRegion, REGION_NAMES, upcomingHolidays } from "./holidays.js";
+import { holidayWord, upcomingHolidays } from "./holidays.js";
+import { settings } from "./locale.js";
 import { MoneyStore } from "./money.js";
 import { longDate, shortDate } from "./money-report.js";
 import { workingDayFor } from "./money-tools.js";
 import { formatCost } from "./report.js";
 import type { Store } from "./store.js";
 import type { Item } from "./types.js";
-import { formatMoney } from "./util.js";
+import { money } from "./util.js";
 
 // The home screen: one calm, read-only page built on the server (works without JavaScript and
 // prints cleanly), served only to this computer.
@@ -21,9 +22,9 @@ import { formatMoney } from "./util.js";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ASSETS = path.join(here, "..", "dashboard");
 
-const gbp = (n: number) => formatMoney(n, "GBP").replace(/\.00$/, "");
+const gbp = (n: number) => money(n);
 /** Whole pounds for the glanceable cards: £263 rather than £262.78. */
-const pounds = (n: number) => formatMoney(Math.round(n), "GBP").replace(/\.00$/, "");
+const pounds = (n: number) => money(Math.round(n));
 /** Width class in 5% steps (inline styles are blocked by the page's security policy). */
 const widthClass = (pct: number) => `w${pct <= 0 ? 0 : Math.max(5, Math.min(100, Math.round(pct / 5) * 5))}`;
 
@@ -133,7 +134,7 @@ function riskWord(o: PlanOption): { word: string; cls: Status } {
 
 export async function renderHome(store: Store, money: MoneyStore, now: Date = new Date()): Promise<string> {
   const todayDate = today();
-  const region = defaultRegion();
+  const region = settings().place;
   const items = await store.loadAll();
   const transactions = await money.loadTransactions();
   const pot = await money.loadPot();
@@ -233,19 +234,19 @@ ${
         .join("")}</ul>`
     : `<p class="muted">${h(plan.flags[0] ?? "Add your income and some spending records to see what you could put aside.")}</p>`
 }
-<p class="note">Sums on your own figures, not financial advice. Free guidance: MoneyHelper.</p>`;
+<p class="note">Sums on your own figures, not financial advice.${region.country === "GB" ? " Free guidance: MoneyHelper." : ""}</p>`;
 
   // ---- bank holidays ----
   const holidaysHtml = holidays.length
     ? `<ul class="holidays">${holidays.map((x) => `<li><span class="when-day">${h(longDate(x.date))}</span><span class="muted">${h(x.title)}</span></li>`).join("")}</ul>
-<p class="note">Banks are closed. Payments due then usually go out the next working day.</p>`
+<p class="note">Banks and many businesses are closed. Payments due then usually go out the next working day.</p>`
     : `<p class="muted">None in the next few months.</p>`;
 
   const card = (id: string, ic: string, title: string, body: string, size: "" | "wide" | "full" = "") =>
     `<section class="card${size ? ` ${size}` : ""}" aria-labelledby="${id}"><h2 id="${id}">${icon(ic)}${h(title)}</h2>${body}</section>`;
 
   return `<!doctype html>
-<html lang="en-GB">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -274,7 +275,7 @@ ${
     ${card("payday", "wallet", "Next payday", paydayHtml)}
     ${card("spending", "basket", weekTitle, spendHtml, "wide")}
     ${card("pot", "umbrella", "Rainy-day pot", potHtml)}
-    ${card("holidays", "calendar", `Bank holidays (${REGION_NAMES[region]})`, holidaysHtml, "full")}
+    ${card("holidays", "calendar", `${holidayWord(region).replace(/^./, (c) => c.toUpperCase())} (${settings().label})`, holidaysHtml, "full")}
   </div>
 </main>
 <footer class="foot">

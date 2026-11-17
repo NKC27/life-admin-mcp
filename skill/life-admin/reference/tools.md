@@ -38,5 +38,5 @@ Categories: `bills`, `groceries`, `shopping`, `going-out`, `transport`, `tax`, `
 | Tool | Arguments | Notes |
 | --- | --- | --- |
 | `export_calendar` | `minimal?` | Writes `exports/life-admin.ics`: every dated item as an all-day event with 9am reminders (when the reminder window opens, and on the day). Repeats match `mark_handled`. Never includes references or notes; `minimal: true` also leaves out provider and cost. write |
-| `bank_holidays` | `days?`, `region?` | Official gov.uk dates for `england-and-wales`, `scotland` or `northern-ireland`. read |
+| `bank_holidays` | `days?`, `place?` | Public and bank holidays for the person's country and region (set at install), or for another `place` such as 'Scotland', 'Ireland' or 'United States, California'. The UK uses gov.uk dates; elsewhere the open date-holidays data. read |
 | `open_home_screen` | none | Opens the home screen in the browser (this computer only). read |

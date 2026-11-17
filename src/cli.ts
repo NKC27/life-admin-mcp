@@ -6,6 +6,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 
 import { defaultHomeFolder, describeSource, resolveFolder } from "./config.js";
 import { Store } from "./store.js";
+import { settings } from "./locale.js";
 import { containsCardNumber } from "./util.js";
 import { today } from "./dates.js";
 import { dueReport } from "./report.js";
@@ -176,6 +177,13 @@ async function doctor(): Promise<number> {
   if (location.source === "demo") {
     report("warn", `You are using the demo folder. Run \`npx -y ${PACKAGE} init\` to create your own.`);
   }
+
+  const where = settings();
+  report(
+    "ok",
+    `Country: ${where.label} · currency ${where.currency} (set with LIFE_ADMIN_COUNTRY, LIFE_ADMIN_REGION and LIFE_ADMIN_CURRENCY)`
+  );
+  for (const u of where.unrecognised) report("warn", `Not recognised: ${u}. Using ${where.label}, ${where.currency}.`);
 
   const store = new Store(location.path);
   const itemsDirExists = await fs

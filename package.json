@@ -1,6 +1,6 @@
 {
   "name": "@nkc27/life-admin-mcp",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Local-first life admin for AI agents, served over MCP: renewals, bills, subscriptions, warranties and policies as plain markdown files you own.",
   "type": "module",
   "bin": {
@@ -48,6 +48,7 @@
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "date-holidays": "^3.39.2",
     "gray-matter": "^4.0.3",
     "js-yaml": "^4.3.2",
     "zod": "^4.5.4"

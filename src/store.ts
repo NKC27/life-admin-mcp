@@ -2,11 +2,15 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import matter from "gray-matter";
 import yaml from "js-yaml";
+import { settings } from "./locale.js";
 import { ITEM_TYPES, PERIODS, type Item, type ItemInput, type ItemType, type Period } from "./types.js";
 import { containsCardNumber, isCurrencyCode, isIsoDate, levenshtein, maskRef, slugify } from "./util.js";
 
 export const DEFAULT_REMIND_DAYS = 14;
-export const DEFAULT_CURRENCY = "GBP";
+/** The person's own currency (from their country setting), used when an item doesn't say. */
+export function defaultCurrency(): string {
+  return settings().currency;
+}
 
 export interface ParsedItem {
   item: Item;
@@ -71,7 +75,7 @@ export function parseItem(slug: string, raw: string, filePath: string): ParsedIt
     else problems.push(`anchor_day "${String(data.anchor_day)}" should be 29, 30 or 31`);
   }
 
-  let currency = DEFAULT_CURRENCY;
+  let currency = defaultCurrency();
   if (data.currency !== undefined) {
     if (isCurrencyCode(data.currency)) currency = data.currency;
     else problems.push(`currency "${String(data.currency)}" is not a three-letter code such as GBP`);
@@ -248,7 +252,7 @@ export class Store {
       type: input.type,
       provider: input.provider?.trim() || undefined,
       cost: input.cost,
-      currency: input.currency ?? DEFAULT_CURRENCY,
+      currency: input.currency ?? defaultCurrency(),
       period: input.period ?? "one-off",
       due: input.due,
       anchor_day: input.anchor_day,

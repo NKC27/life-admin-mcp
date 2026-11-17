@@ -1,3 +1,5 @@
+import { debtService, guidanceService } from "./locale.js";
+import { money as formatWhole } from "./util.js";
 import { addDays, addMonths, rollForward } from "./dates.js";
 import { CATEGORIES, ESSENTIALS, SPENDING, roundPence, type Category, type Pot, type Transaction } from "./money.js";
 import type { Item, ItemType, Period } from "./types.js";
@@ -396,7 +398,7 @@ function monthStats(transactions: Transaction[], range: Range): MonthStats {
   };
 }
 
-const money = (n: number) => `£${Math.round(n).toLocaleString("en-GB")}`;
+const money = (n: number) => formatWhole(Math.round(n));
 
 export function rainyDayPlan(
   transactions: Transaction[],
@@ -481,7 +483,7 @@ export function rainyDayPlan(
     );
   } else if (leftOver !== undefined && leftOver <= 0) {
     flags.push(
-      `On these figures, more goes out than comes in (about ${money(-leftOver)} a month short, counting set-asides for big bills), so there is nothing safe to put away yet. MoneyHelper's free budget planner can help find room.`
+      `On these figures, more goes out than comes in (about ${money(-leftOver)} a month short, counting set-asides for big bills), so there is nothing safe to put away yet. Free, impartial help with a budget is available from ${guidanceService()}.`
     );
   }
   if (stats.length < 2) {
@@ -514,7 +516,7 @@ export function rainyDayPlan(
   ];
   if (borrowing.length)
     flags.push(
-      `Some payments look like borrowing (${borrowing.slice(0, 3).join(", ")}). If you are borrowing to cover everyday costs, paying off expensive debt usually comes before saving. StepChange (stepchange.org) gives free, confidential debt advice.`
+      `Some payments look like borrowing (${borrowing.slice(0, 3).join(", ")}). If you are borrowing to cover everyday costs, paying off expensive debt usually comes before saving. ${debtService().replace(/^./, (c) => c.toUpperCase())}.`
     );
   if (income) {
     const soon = addDays(todayDate, 60);
@@ -543,7 +545,7 @@ export function rainyDayPlan(
       `Your ${subscriptions.length} tracked subscription(s) come to about ${money(total)} a month. Any you no longer use?`
     );
   }
-  for (const i of subscriptions.filter((s) => /was £/.test(s.body)))
+  for (const i of subscriptions.filter((s) => /\bwas \D{0,4}\d/.test(s.body)))
     ideas.push(`${i.title} has gone up in price before. Worth checking for a cheaper plan.`);
 
   return {

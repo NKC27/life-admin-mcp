@@ -15,7 +15,7 @@ Until `init` has run, the server uses a built-in demo folder with made-up items,
 
 ## Scotland and Northern Ireland
 
-Bank holidays default to England and Wales. Set `LIFE_ADMIN_REGION` to `scotland` or `northern-ireland` in the server's settings.
+Country, region and currency are asked for when installing the one-click extension (change them later in Claude's extension settings). For other setups, set `LIFE_ADMIN_COUNTRY` (e.g. `Ireland`, `United States`), optionally `LIFE_ADMIN_REGION` (e.g. `Scotland`, `California`) and `LIFE_ADMIN_CURRENCY` (e.g. `EUR`) in the server's settings. With nothing set it uses the UK (England and Wales) and pounds.
 
 ## The home screen
 

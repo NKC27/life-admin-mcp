@@ -12,6 +12,9 @@ import {
   parseAmount,
   parseBankCsv,
   parseUkDate,
+  parseDate,
+  detectDateOrder,
+  usesDecimalComma,
   transactionId,
   type Transaction,
 } from "../src/money.js";
@@ -50,6 +53,59 @@ test("parseUkDate reads UK formats day first and rejects impossible dates", () =
   assert.equal(parseUkDate("11/16/2026"), null, "US order is not accepted: there is no month 16");
   assert.equal(parseUkDate("30/02/2026"), null);
   assert.equal(parseUkDate("Balance brought forward"), null);
+});
+
+test("parseDate reads month-first and year-first dates when asked", () => {
+  assert.equal(parseDate("11/16/2026", "MDY"), "2026-11-16");
+  assert.equal(parseDate("1/2/26", "MDY"), "2026-01-02");
+  assert.equal(parseDate("2026/11/16", "MDY"), "2026-11-16");
+  assert.equal(parseDate("Nov 16, 2026", "DMY"), "2026-11-16");
+  assert.equal(parseDate("16/11/2026", "MDY"), null, "no month 16");
+});
+
+test("a file's date order is worked out from its dates", () => {
+  assert.equal(detectDateOrder(["03/04/2026", "11/16/2026"], "DMY"), "MDY");
+  assert.equal(detectDateOrder(["03/04/2026", "16/11/2026"], "MDY"), "DMY");
+  assert.equal(detectDateOrder(["03/04/2026"], "MDY"), "MDY", "ambiguous: the country's usual order");
+  assert.equal(detectDateOrder(["03/04/2026"], "DMY"), "DMY");
+});
+
+test("decimal commas are recognised", () => {
+  assert.ok(usesDecimalComma(["-12,50", "1.234,56", "3,00"]));
+  assert.ok(!usesDecimalComma(["-12.50", "1,234.56"]));
+  assert.equal(parseAmount("-1.234,56 €", true), -1234.56);
+  assert.equal(parseAmount("12,5", true), 12.5);
+  assert.equal(parseAmount("$1,234.56"), 1234.56);
+});
+
+test("European and American statements import correctly", () => {
+  const de = parseBankCsv(
+    "Buchungstag;Empfänger;Verwendungszweck;Betrag\n03.11.2026;Example Strom GmbH;Abschlag;-85,40\n16.11.2026;Example Arbeitgeber;Gehalt;2.450,00\n",
+    []
+  );
+  assert.equal(de.transactions.length, 2);
+  assert.deepEqual(
+    de.transactions.map((t) => [t.date, t.amount]),
+    [
+      ["2026-11-03", -85.4],
+      ["2026-11-16", 2450],
+    ]
+  );
+  const us = parseBankCsv(
+    'Posting Date,Description,Amount\n11/03/2026,EXAMPLE POWER CO,-85.40\n11/16/2026,EXAMPLE EMPLOYER PAYROLL,"2,450.00"\n',
+    [],
+    "MDY"
+  );
+  assert.deepEqual(
+    us.transactions.map((t) => [t.date, t.amount]),
+    [
+      ["2026-11-03", -85.4],
+      ["2026-11-16", 2450],
+    ]
+  );
+  // A US file read with a UK default still works out month-first from the 16th
+  const guessed = parseBankCsv("Date,Description,Amount\n11/03/2026,A,-1.00\n11/16/2026,B,-2.00\n", [], "DMY");
+  assert.equal(guessed.transactions[0]!.date, "2026-11-03");
 });
 
 test("parseAmount reads the ways banks write money", () => {

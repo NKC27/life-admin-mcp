@@ -1,14 +1,16 @@
 import type { MoneyAhead, RainyDayPlan, SpendingSummary } from "./budget.js";
-import { formatMoney } from "./util.js";
+import { guidanceService } from "./locale.js";
+import { money } from "./util.js";
 
 // Plain-English text for the money tools and the `money` command.
 
-export const NOT_ADVICE =
-  "This is arithmetic on your own figures, not financial advice. For free, impartial money guidance: " +
-  "MoneyHelper (moneyhelper.org.uk).";
+/** The closing line of every plan: not advice, and where free guidance is. */
+export function notAdvice(): string {
+  return `This is arithmetic on your own figures, not financial advice. For free, impartial money guidance: ${guidanceService()}.`;
+}
 
-/** £100 for whole pounds, £10.99 otherwise. */
-const gbp = (n: number) => formatMoney(n, "GBP").replace(/\.00$/, "");
+/** £100 for whole amounts, £10.99 otherwise, in the person's currency. */
+const gbp = (n: number) => money(n);
 
 // Dates are spelled out here rather than with Intl, because Node versions format en-GB dates
 // differently ("Tue, 10 Nov" on older ones, "Tue 10 Nov" on newer), and Claude Desktop ships its own Node.
@@ -115,14 +117,14 @@ export function formatMoneyAhead(m: MoneyAhead): string {
       );
     lines.push(`Total: ${gbp(m.total)}`);
   } else {
-    lines.push("", `No tracked payments between ${window}.`);
+    lines.push("", `No tracked payments from ${window}.`);
   }
   if (m.left !== undefined) {
     lines.push(
       "",
       m.left >= 0
         ? `With ${gbp(m.balance!)} in the bank now, about ${gbp(m.left)} is left after these until payday.`
-        : `With ${gbp(m.balance!)} in the bank now, these payments come to ${gbp(-m.left)} more than you have. Worth acting on now: contact the companies before the dates, or see MoneyHelper for help.`
+        : `With ${gbp(m.balance!)} in the bank now, these payments come to ${gbp(-m.left)} more than you have. Worth acting on now: contact the companies before the dates, or get free help from ${guidanceService()}.`
     );
   }
   if (m.missingCosts.length) lines.push("", `Not counted, no amount recorded: ${m.missingCosts.join(", ")}.`);
@@ -166,7 +168,9 @@ export function formatRainyDay(p: RainyDayPlan): string {
       const parts = [`${gbp(o.monthly)} a month (about ${gbp(o.weekly)} a week)`];
       if (o.monthsToStarter !== undefined)
         parts.push(
-          o.monthsToStarter === 0 ? `£1,000 starter pot reached` : `£1,000 pot in ${o.monthsToStarter} month(s)`
+          o.monthsToStarter === 0
+            ? `${gbp(1000)} starter pot reached`
+            : `${gbp(1000)} pot in ${o.monthsToStarter} month(s)`
         );
       if (o.monthsToThreeMonths !== undefined && p.goals.threeMonths > 0)
         parts.push(`3 months of essentials (${gbp(p.goals.threeMonths)}) in ${o.monthsToThreeMonths} month(s)`);
@@ -186,6 +190,6 @@ export function formatRainyDay(p: RainyDayPlan): string {
     );
   if (p.flags.length) lines.push("", "Worth knowing:", ...p.flags.map((f) => `- ${f}`));
   if (p.ideas.length) lines.push("", "Where some money could come from:", ...p.ideas.map((i) => `- ${i}`));
-  lines.push("", NOT_ADVICE);
+  lines.push("", notAdvice());
   return lines.join("\n");
 }

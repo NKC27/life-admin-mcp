@@ -1,3 +1,5 @@
+import { settings } from "./locale.js";
+
 export function slugify(title: string): string {
   const slug = title
     .toLowerCase()
@@ -80,9 +82,39 @@ export function isCurrencyCode(value: unknown): value is string {
   }
 }
 
-/** £412.00, €9.99 ... in British formatting. */
-export function formatMoney(amount: number, currency: string): string {
-  return new Intl.NumberFormat("en-GB", { style: "currency", currency }).format(amount);
+const localeTags = new Map<string, string>();
+
+/** An English number-formatting locale for the country ("en-GB", "en-US", "en-IE"), falling back to en-GB. */
+export function numberLocale(country: string): string {
+  let tag = localeTags.get(country);
+  if (!tag) {
+    const wanted = `en-${country}`;
+    let supported: string[] = [];
+    try {
+      supported = Intl.NumberFormat.supportedLocalesOf([wanted]);
+    } catch {
+      // invalid tag
+    }
+    tag = supported.length ? wanted : "en-GB";
+    localeTags.set(country, tag);
+  }
+  return tag;
+}
+
+/** £412.00, $9.99, €12.50 ... with two decimal places, in the person's country's English style. */
+export function formatMoney(amount: number, currency: string, country = settings().place.country): string {
+  return new Intl.NumberFormat(numberLocale(country), { style: "currency", currency }).format(amount);
+}
+
+/** Like formatMoney, but whole amounts drop the decimals: £100, $9.99. Uses the person's currency by default. */
+export function money(amount: number, currency = settings().currency, country = settings().place.country): string {
+  const whole = Math.round(amount * 100) % 100 === 0;
+  return new Intl.NumberFormat(numberLocale(country), {
+    style: "currency",
+    currency,
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: whole ? 0 : 2,
+  }).format(amount);
 }
 
 /** Percentage change from `before` to `after`, as "+9%" / "-12%" / "no change", or "" when `before` is 0. */

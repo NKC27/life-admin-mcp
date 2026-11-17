@@ -2,7 +2,8 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { parseCsv, toCsv, unguardCell } from "./csv.js";
+import { detectDelimiter, parseCsv, toCsv, unguardCell } from "./csv.js";
+import type { DateOrder } from "./locale.js";
 import { isIsoDate, maskCardNumbers } from "./util.js";
 
 // ---------------------------------------------------------------------------
@@ -46,7 +47,7 @@ export function isCategory(value: unknown): value is Category {
 }
 
 /**
- * Starting rules for common UK shops and payees. The person's own rules always win, and the longest
+ * Starting rules for common shops and payees (mostly UK, plus international names). The person's own rules always win, and the longest
  * matching text wins within each set (so "UBER EATS" is going out, while "UBER" is transport).
  */
 export const DEFAULT_RULES: Array<[string, Category]> = [
@@ -62,6 +63,24 @@ export const DEFAULT_RULES: Array<[string, Category]> = [
   ["ICELAND", "groceries"],
   ["M&S FOOD", "groceries"],
   ["OCADO", "groceries"],
+  // groceries elsewhere
+  ["WHOLE FOODS", "groceries"],
+  ["TRADER JOE", "groceries"],
+  ["KROGER", "groceries"],
+  ["SAFEWAY", "groceries"],
+  ["PUBLIX", "groceries"],
+  ["WALMART", "groceries"],
+  ["COSTCO", "groceries"],
+  ["DUNNES", "groceries"],
+  ["SUPERVALU", "groceries"],
+  ["WOOLWORTHS", "groceries"],
+  ["COLES", "groceries"],
+  ["LOBLAWS", "groceries"],
+  ["CARREFOUR", "groceries"],
+  ["REWE", "groceries"],
+  ["EDEKA", "groceries"],
+  ["ALBERT HEIJN", "groceries"],
+  ["MERCADONA", "groceries"],
   // shopping
   ["AMAZON", "shopping"],
   ["ARGOS", "shopping"],
@@ -71,12 +90,17 @@ export const DEFAULT_RULES: Array<[string, Category]> = [
   ["NEXT", "shopping"],
   ["IKEA", "shopping"],
   ["EBAY", "shopping"],
+  ["TARGET", "shopping"],
+  ["BEST BUY", "shopping"],
   // eating and going out
   ["DELIVEROO", "going-out"],
   ["JUST EAT", "going-out"],
   ["UBER EATS", "going-out"],
   ["COSTA", "going-out"],
   ["STARBUCKS", "going-out"],
+  ["DOORDASH", "going-out"],
+  ["GRUBHUB", "going-out"],
+  ["TIM HORTONS", "going-out"],
   ["CAFFE NERO", "going-out"],
   ["PRET", "going-out"],
   ["GREGGS", "going-out"],
@@ -96,6 +120,9 @@ export const DEFAULT_RULES: Array<[string, Category]> = [
   ["ESSO", "transport"],
   ["BP", "transport"],
   ["TEXACO", "transport"],
+  ["CHEVRON", "transport"],
+  ["EXXON", "transport"],
+  ["LYFT", "transport"],
   ["DVLA", "transport"],
   ["PARKING", "transport"],
   // bills and energy
@@ -169,7 +196,7 @@ export type Source = "typed" | "bank" | "email";
 export interface Transaction {
   id: string;
   date: string;
-  /** Pounds; negative is money out, positive is money in. */
+  /** In the person's currency; negative is money out, positive is money in. */
   amount: number;
   description: string;
   category: Category;
@@ -301,43 +328,95 @@ export class MoneyStore {
 // bank statement import
 // ---------------------------------------------------------------------------
 
-export function parseUkDate(raw: string): string | null {
+const MONTH_NAMES = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+/**
+ * A date as written on a bank statement, in the given order for all-number dates:
+ * DMY "16/11/2026", MDY "11/16/2026", YMD "2026/11/16". ISO dates and month names
+ * ("01 Nov 2026", "Nov 16, 2026") work in any order. Impossible dates give null.
+ */
+export function parseDate(raw: string, order: DateOrder = "DMY"): string | null {
   const s = raw.trim();
-  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return isIsoDate(`${m[1]}-${m[2]}-${m[3]}`) ? `${m[1]}-${m[2]}-${m[3]}` : null;
   const pad = (n: string) => n.padStart(2, "0");
   const year = (y: string) => (y.length === 2 ? `20${y}` : y);
+  const ok = (iso: string) => (isIsoDate(iso) ? iso : null);
+  let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (m) return ok(`${m[1]}-${pad(m[2]!)}-${pad(m[3]!)}`);
   m = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})\b/);
   if (m) {
-    const iso = `${year(m[3]!)}-${pad(m[2]!)}-${pad(m[1]!)}`; // UK order: day first
-    return isIsoDate(iso) ? iso : null;
+    const [a, b] = [m[1]!, m[2]!];
+    return order === "MDY" ? ok(`${year(m[3]!)}-${pad(a)}-${pad(b)}`) : ok(`${year(m[3]!)}-${pad(b)}-${pad(a)}`);
   }
-  const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-  m = s.match(/^(\d{1,2})[ -]([A-Za-z]{3})[A-Za-z]*[ -](\d{2}|\d{4})\b/);
+  m = s.match(/^(\d{1,2})[ -]([A-Za-z]{3})[A-Za-z]*\.?[ -](\d{2}|\d{4})\b/);
   if (m) {
-    const month = MONTHS.indexOf(m[2]!.toLowerCase()) + 1;
-    if (!month) return null;
-    const iso = `${year(m[3]!)}-${pad(String(month))}-${pad(m[1]!)}`;
-    return isIsoDate(iso) ? iso : null;
+    const month = MONTH_NAMES.indexOf(m[2]!.toLowerCase()) + 1;
+    return month ? ok(`${year(m[3]!)}-${pad(String(month))}-${pad(m[1]!)}`) : null;
+  }
+  m = s.match(/^([A-Za-z]{3})[A-Za-z]*\.? (\d{1,2}),? (\d{4})\b/);
+  if (m) {
+    const month = MONTH_NAMES.indexOf(m[1]!.toLowerCase()) + 1;
+    return month ? ok(`${m[3]}-${pad(String(month))}-${pad(m[2]!)}`) : null;
   }
   return null;
 }
 
-/** "£1,234.56", "-12.30", "(12.30)", "12.30 DR", "" -> number (NaN when unreadable). */
-export function parseAmount(raw: string): number {
-  let s = raw.trim().replace(/[£$€,\s]/g, "");
+/** UK-style (day first) parsing, kept for existing callers. */
+export function parseUkDate(raw: string): string | null {
+  return parseDate(raw, "DMY");
+}
+
+/**
+ * Which order a file's all-number dates are in: a first part above 12 means day first, a second part
+ * above 12 means month first; otherwise the country's usual order.
+ */
+export function detectDateOrder(values: string[], fallback: DateOrder): DateOrder {
+  let dayFirst = false;
+  let monthFirst = false;
+  for (const v of values) {
+    const m = v.trim().match(/^(\d{1,2})[/.-](\d{1,2})[/.-]\d{2,4}\b/);
+    if (!m) continue;
+    if (Number(m[1]) > 12) dayFirst = true;
+    if (Number(m[2]) > 12) monthFirst = true;
+  }
+  if (dayFirst && !monthFirst) return "DMY";
+  if (monthFirst && !dayFirst) return "MDY";
+  return fallback === "YMD" ? "DMY" : fallback;
+}
+
+/** True when a file writes money with a decimal comma ("12,50", "1.234,56"). */
+export function usesDecimalComma(values: string[]): boolean {
+  let comma = 0;
+  let point = 0;
+  for (const v of values) {
+    const s = v.replace(/[^\d.,]/g, "");
+    if (/,\d{1,2}$/.test(s)) comma++;
+    else if (/\.\d{1,2}$/.test(s)) point++;
+  }
+  return comma > point;
+}
+
+/**
+ * Money as written on a statement: "£1,234.56", "-12.30", "(12.30)", "12.30 DR", "$1,234.56",
+ * "-1.234,56 €", "12,50" (decimal comma when `decimalComma`). "" or text -> NaN.
+ */
+export function parseAmount(raw: string, decimalComma = false): number {
+  let s = raw.trim();
   if (!s) return NaN;
   let sign = 1;
-  if (/^\(.*\)$/.test(s)) {
+  if (/\bDR\s*$/i.test(s)) {
     sign = -1;
+    s = s.replace(/\s*DR\s*$/i, "");
+  } else {
+    s = s.replace(/\s*CR\s*$/i, "");
+  }
+  if (/^\(.*\)$/.test(s)) {
+    sign = -sign;
     s = s.slice(1, -1);
   }
-  if (/DR$/i.test(s)) {
-    sign = -1;
-    s = s.slice(0, -2);
-  } else if (/CR$/i.test(s)) {
-    s = s.slice(0, -2);
-  }
+  s = s.replace(/[^\d.,+-]/g, "");
+  if (!s || !/\d/.test(s)) return NaN;
+  if (decimalComma) s = s.replace(/\./g, "").replace(",", ".");
+  else s = s.replace(/,/g, "");
   if (!/^[+-]?\d+(\.\d+)?$/.test(s)) return NaN;
   return sign * Number(s);
 }
@@ -356,16 +435,38 @@ function findColumns(header: string[]): ColumnMap | null {
   const h = header.map((x) => x.trim().toLowerCase());
   const find = (test: (x: string) => boolean) => h.findIndex(test);
 
-  const date =
-    find((x) => x === "date") >= 0 ? find((x) => x === "date") : find((x) => x.includes("date") && !x.includes("time"));
-  const out = find((x) => /paid out|money out|debit|withdrawal|spent/.test(x));
-  const inn = find((x) => /paid in|money in|credit|deposit|received/.test(x));
-  let amount = find((x) => x === "amount" || x === "amount (gbp)" || x === "value");
-  if (amount < 0) amount = find((x) => x.startsWith("amount") || x === "transaction amount");
+  const DATE = /^(date|datum|fecha|data|dato|päivämäärä)$/;
+  let date = find((x) => DATE.test(x));
+  if (date < 0)
+    date = find((x) => /date|datum|fecha|buchungstag|valuta/.test(x) && !/time|valuta date|value date/.test(x));
+  if (date < 0) date = find((x) => /date|datum|fecha/.test(x));
+  const out = find((x) => /paid out|money out|debit|withdrawal|spent|soll|ausgang|débit|cargo/.test(x));
+  const inn = find((x) => /paid in|money in|credit|deposit|received|haben|eingang|crédit|abono/.test(x));
+  let amount = find((x) => /^(amount|value|betrag|montant|importe|bedrag|importo|beløb|belopp)$/.test(x));
+  if (amount < 0)
+    amount = find((x) => /^(amount|betrag|montant|importe|bedrag|importo)\b/.test(x) || x === "transaction amount");
 
   const notMeta = (x: string) => !/account|category|type|balance|currency/.test(x);
   let description = -1;
-  for (const name of ["name", "merchant", "payee", "description", "details", "narrative", "memo", "reference"]) {
+  for (const name of [
+    "name",
+    "merchant",
+    "payee",
+    "description",
+    "details",
+    "narrative",
+    "memo",
+    "empfänger",
+    "verwendungszweck",
+    "buchungstext",
+    "libellé",
+    "libelle",
+    "concepto",
+    "omschrijving",
+    "naam",
+    "beschreibung",
+    "reference",
+  ]) {
     description = find((x) => (x === name || x.includes(name)) && notMeta(x));
     if (description >= 0) break;
   }
@@ -385,10 +486,12 @@ export interface BankImport {
 
 /**
  * Read a bank statement CSV. Finds the header row (some banks put account details above it),
- * recognises the usual UK column names and date formats (day first), and categorises each line.
+ * recognises common column names (English, plus German, French, Spanish, Dutch and Italian), comma,
+ * semicolon or tab separators, decimal commas, and day-first or month-first dates (worked out from the
+ * file, falling back to the country's usual order), and categorises each line.
  */
-export function parseBankCsv(text: string, rules: Array<[string, Category]>): BankImport {
-  const rows = parseCsv(text);
+export function parseBankCsv(text: string, rules: Array<[string, Category]>, dateOrder: DateOrder = "DMY"): BankImport {
+  const rows = parseCsv(text, detectDelimiter(text));
   if (rows.length > 50_000) throw new Error("That file has more than 50,000 rows. Please export a shorter period.");
   let headerIndex = -1;
   let columns: ColumnMap | null = null;
@@ -410,15 +513,24 @@ export function parseBankCsv(text: string, rules: Array<[string, Category]>): Ba
   const counts = new Map<string, number>();
   const transactions: Transaction[] = [];
   let skippedRows = 0;
+  const body = rows.slice(headerIndex + 1);
+  const order = detectDateOrder(
+    body.map((r) => r[columns!.date] ?? ""),
+    dateOrder
+  );
+  const moneyCells = body.flatMap((r) =>
+    [columns!.amount, columns!.out, columns!.in].filter((i): i is number => i !== undefined).map((i) => r[i] ?? "")
+  );
+  const decimalComma = usesDecimalComma(moneyCells);
 
-  for (const row of rows.slice(headerIndex + 1)) {
-    const date = parseUkDate(row[columns.date] ?? "");
+  for (const row of body) {
+    const date = parseDate(row[columns.date] ?? "", order);
     let amount: number;
     if (columns.amount !== undefined) {
-      amount = parseAmount(row[columns.amount] ?? "");
+      amount = parseAmount(row[columns.amount] ?? "", decimalComma);
     } else {
-      const out = parseAmount(row[columns.out!] ?? "");
-      const inn = parseAmount(row[columns.in!] ?? "");
+      const out = parseAmount(row[columns.out!] ?? "", decimalComma);
+      const inn = parseAmount(row[columns.in!] ?? "", decimalComma);
       amount = (Number.isNaN(inn) ? 0 : Math.abs(inn)) - (Number.isNaN(out) ? 0 : Math.abs(out));
       if (Number.isNaN(out) && Number.isNaN(inn)) amount = NaN;
     }

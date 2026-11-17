@@ -1,6 +1,6 @@
 ---
 name: life-admin
-description: Household life admin through the life-admin MCP server, stored on the user's own computer. Use when the user mentions bills, renewals, subscriptions, insurance, MOT, council tax, warranties, passports, birthdays, appointments, bank holidays, spending, bank statements, payday, saving or a rainy-day fund, or asks "what's coming up", "what's due", "what have I spent" or "put it in my calendar". Use it for saving questions too, even "which account should I use". It works out amounts from their own figures and doesn't recommend financial products.
+description: Household life admin through the life-admin MCP server, stored on the user's own computer. Use when the user mentions bills, renewals, subscriptions, insurance, MOT, council tax, property tax, warranties, passports, birthdays, appointments, bank or public holidays, spending, bank statements, payday, saving or a rainy-day fund, or asks "what's coming up", "what's due", "what have I spent" or "put it in my calendar". Use it for saving questions too, even "which account should I use". It works out amounts from their own figures and doesn't recommend financial products.
 ---
 
 # Life Admin
@@ -35,7 +35,7 @@ Every tool and its arguments: `reference/tools.md`. When something doesn't work:
 4. **Search before adding** to avoid duplicates.
 5. **Ask first** before deleting, importing a bank file, or creating calendar events.
 6. **Reminders need the calendar.** Never say "I'll remind you" without exporting to it.
-7. **Money:** do sums on their own figures; never recommend financial products. Point to MoneyHelper for guidance, and StepChange if they're struggling with debt.
+7. **Money:** do sums on their own figures, in their currency; never recommend financial products. For free guidance, in the UK point to MoneyHelper (and StepChange if they're struggling with debt); elsewhere, to their country's free government or non-profit money and debt advice services. Don't quote UK rules to someone outside the UK (`get_stats` shows their country).
 8. **Scams:** if a message demands urgent payment, threatens a penalty, or asks for bank details or a click to pay, say it may be a scam, don't add it, and suggest contacting the company on a number they already have.
 
 ## Replies
