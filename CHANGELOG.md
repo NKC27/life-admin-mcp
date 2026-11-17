@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0 (unreleased)
+## 1.0.0 (2026-11-17)
 
 - First public release. Typed life-admin items stored as markdown in `~/LifeAdmin/items`.
 - Storage validates dates, costs and reminder windows, masks references to their last four characters, refuses card numbers, and keeps deletes recoverable.
